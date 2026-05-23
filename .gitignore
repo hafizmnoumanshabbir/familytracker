@@ -1,0 +1,18 @@
+# Local file-DB (each user has their own; never commit personal data)
+db/
+!db/.gitkeep
+
+# Runtime / OS noise
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+
+# Editor scratch
+*.swp
+.vscode/
+.idea/
+
+# Local Claude Code config (paths, permissions are user-specific)
+.claude/

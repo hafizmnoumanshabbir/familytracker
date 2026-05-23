@@ -1,0 +1,2113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Family Quest</title>
+<!-- Supabase JS SDK (UMD). Loaded async; the app gracefully no-ops if it
+     fails to load or the user hasn't pasted their cloud keys yet. -->
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  :root {
+    --green:#2D4A3A; --green-d:#243B2F; --terra:#C2724E; --terra-d:#A85F3D;
+    --cream:#FAF6EE; --cream-d:#F0EADC; --honey:#E8B96E; --honey-d:#D4A555;
+    --ink:#2A2A2A; --muted:#8A8475; --line:#D4CFC4; --white:#fff;
+    --sky:#7BBFE0; --grape:#9F7CC7; --rose:#E07A9A; --leaf:#7FB069;
+    /* Brighter for kids */
+    --kid-bg:#FFF8E5; --kid-card:#FFFCF3;
+  }
+  html,body { font-family:'Helvetica Neue',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:var(--cream); color:var(--ink); line-height:1.45; -webkit-font-smoothing:antialiased; }
+  body.role-kid { background:var(--kid-bg); }
+  .app { max-width:1400px; margin:0 auto; padding:14px 20px 40px; }
+  .hidden { display:none !important; }
+
+  /* ============ LOGIN SCREEN ============ */
+  .login-screen { position:fixed; inset:0; background:linear-gradient(135deg,#FFF8E5 0%, #FAF6EE 50%, #F0EADC 100%);
+    display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
+  .login-card { background:var(--white); border-radius:20px; padding:32px 28px;
+    max-width:420px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.12), 0 4px 12px rgba(232,185,110,0.18); }
+  .login-card h1 { font-size:32px; font-weight:800; color:var(--green); text-align:center;
+    margin-bottom:6px; letter-spacing:-0.8px; }
+  .login-card h1 .accent { color:var(--terra); }
+  .login-card .login-sub { text-align:center; color:var(--muted); font-size:13px; margin-bottom:22px; }
+  .role-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:18px; }
+  .role-btn { background:var(--cream); border:2px solid var(--line); border-radius:12px;
+    padding:14px 10px; cursor:pointer; text-align:center; transition:all 0.15s;
+    display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .role-btn:hover { border-color:var(--terra); background:var(--white); }
+  .role-btn.selected { border-color:var(--terra); background:#FBF3EE;
+    box-shadow:0 4px 14px rgba(194,114,78,0.18); }
+  .role-btn .ravatar { font-size:32px; line-height:1; }
+  .role-btn .rname { font-size:13px; font-weight:800; color:var(--green); }
+  .role-btn .rrole { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.4px; font-weight:700; }
+  .login-pin { width:100%; padding:16px; border:2px solid var(--line); border-radius:12px;
+    font-size:22px; text-align:center; letter-spacing:8px; outline:none;
+    font-family:inherit; background:var(--cream); }
+  .login-pin:focus { border-color:var(--terra); background:var(--white); }
+  .login-err { color:var(--terra); font-size:12px; font-weight:700; text-align:center;
+    margin-top:8px; min-height:18px; }
+  .login-actions { display:flex; gap:8px; margin-top:14px; }
+  .login-actions button { flex:1; padding:13px; border:none; border-radius:10px;
+    font-size:13px; font-weight:800; cursor:pointer; text-transform:uppercase; letter-spacing:0.5px; }
+  .login-enter { background:var(--green); color:var(--cream); }
+  .login-enter:hover { background:var(--green-d); }
+  .login-defaults { margin-top:14px; padding:10px 12px; background:var(--cream); border-radius:8px;
+    font-size:11px; color:var(--muted); line-height:1.5; }
+  .login-defaults code { background:var(--cream-d); padding:1px 5px; border-radius:3px;
+    color:var(--terra); font-weight:700; }
+
+  /* ============ TOP BAR ============ */
+  .topbar { display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    border-bottom:3px double var(--green); padding-bottom:12px; margin-bottom:14px; }
+  .topbar .title-block { flex-shrink:0; min-width:170px; }
+  .topbar h1 { font-size:22px; font-weight:800; color:var(--green); letter-spacing:-0.5px; line-height:1; }
+  .topbar h1 .accent { color:var(--terra); }
+  .topbar .date { font-size:11px; color:var(--muted); margin-top:4px; font-weight:600; letter-spacing:0.3px; }
+  .topbar .user-info { margin-left:auto; display:flex; align-items:center; gap:10px;
+    background:var(--cream-d); padding:7px 12px; border-radius:10px; font-size:12px; font-weight:700; }
+  .topbar .user-info .uavatar { font-size:18px; }
+  .topbar .user-info .uname { color:var(--green); }
+  .topbar .user-info button { background:var(--terra); color:var(--white); border:none;
+    padding:5px 11px; border-radius:6px; font-size:10px; font-weight:800;
+    cursor:pointer; text-transform:uppercase; letter-spacing:0.5px; }
+  .topbar .user-info button:hover { background:var(--terra-d); }
+
+  /* ============ KID SWITCHER (parents only) ============ */
+  .kid-tabs { display:flex; gap:8px; overflow-x:auto; padding:4px 0 8px; margin-bottom:12px; }
+  .kid-tab { flex-shrink:0; background:var(--white); border:2px solid var(--line);
+    border-radius:14px; padding:10px 14px; cursor:pointer; text-align:center; min-width:88px;
+    transition:all 0.15s; }
+  .kid-tab:hover { border-color:var(--honey); }
+  .kid-tab.active { border-color:var(--terra); background:#FBF3EE;
+    box-shadow:0 3px 10px rgba(194,114,78,0.18); }
+  .kid-tab .kavatar { font-size:24px; }
+  .kid-tab .kname { font-size:12px; font-weight:800; color:var(--green); margin-top:3px; }
+  .kid-tab .kstars { font-size:10.5px; color:var(--terra); font-weight:700; margin-top:1px;
+    background:var(--cream); padding:1px 7px; border-radius:8px; display:inline-block; }
+
+  /* ============ STARS HERO ============ */
+  .stars-hero { background:linear-gradient(135deg, var(--green) 0%, var(--green-d) 100%);
+    color:var(--cream); border-radius:18px; padding:20px 22px; margin-bottom:14px;
+    text-align:center; position:relative; overflow:hidden;
+    box-shadow:0 6px 18px rgba(45,74,58,0.25); }
+  .stars-hero::before { content:''; position:absolute; top:-40px; right:-40px;
+    width:180px; height:180px; border-radius:50%;
+    background:radial-gradient(circle, rgba(232,185,110,0.35) 0%, transparent 65%); }
+  .stars-hero .hero-label { font-size:11px; text-transform:uppercase; letter-spacing:1.2px;
+    color:#C9C4B6; font-weight:700; position:relative; z-index:2; }
+  .stars-hero .hero-count { font-size:52px; font-weight:800; color:var(--honey);
+    line-height:1; margin:6px 0; letter-spacing:-1.5px; position:relative; z-index:2; }
+  .stars-hero .hero-count .hs { font-size:26px; }
+  .stars-hero .hero-streak { font-size:13px; margin-top:6px; position:relative; z-index:2; }
+  .stars-hero .hero-streak b { color:var(--honey); font-weight:800; }
+
+  /* Progress to next prize */
+  .next-prize { background:var(--white); border:1px solid var(--line); border-radius:14px;
+    padding:13px 16px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.04); }
+  .np-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+  .np-label { font-size:10.5px; text-transform:uppercase; letter-spacing:0.8px;
+    color:var(--terra); font-weight:800; }
+  .np-target { font-size:13px; font-weight:700; color:var(--green); }
+  .np-bar { height:14px; background:var(--cream-d); border-radius:8px; overflow:hidden; position:relative; }
+  .np-fill { height:100%; background:linear-gradient(90deg, var(--honey), var(--terra));
+    border-radius:8px; transition:width 0.5s; }
+  .np-sub { font-size:11.5px; color:var(--muted); margin-top:7px; text-align:center; }
+  .np-sub b { color:var(--terra); }
+
+  /* ============ TABS ============ */
+  .tabs { display:flex; gap:6px; margin-bottom:14px; background:#F5ECD7; padding:5px;
+    border-radius:11px; box-shadow:inset 0 1px 2px rgba(0,0,0,0.05); flex-wrap:wrap; }
+  .tab { flex:1; min-width:80px; text-align:center; padding:10px 8px; font-size:11.5px;
+    font-weight:700; color:var(--muted); border-radius:7px; cursor:pointer; border:none;
+    background:transparent; letter-spacing:0.3px; text-transform:uppercase;
+    transition:all 0.15s; position:relative; }
+  .tab:hover { color:var(--green); }
+  .tab.active { background:var(--white); color:var(--green);
+    box-shadow:0 2px 6px rgba(194,114,78,0.18), 0 0 0 1px rgba(232,185,110,0.3); }
+  .tab.active::after { content:''; display:block; height:2px; background:var(--terra);
+    border-radius:2px; margin:5px 14px -3px; }
+
+  /* ============ KANBAN (kid daily quests) ============ */
+  .kanban { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:10px; align-items:start; }
+  @media (max-width: 900px) { .kanban { grid-template-columns:1fr 1fr; } }
+  @media (max-width: 540px) { .kanban { grid-template-columns:1fr; } }
+  .qcol { background:var(--white); border:1px solid var(--line); border-radius:12px;
+    padding:12px 11px; box-shadow:0 1px 3px rgba(0,0,0,0.04); border-top:4px solid var(--honey); }
+  .qcol.morning { border-top-color:#FFC97B; }
+  .qcol.learn { border-top-color:#7BBFE0; }
+  .qcol.active { border-top-color:#7FB069; }
+  .qcol.evening { border-top-color:#9F7CC7; }
+  .qcol.all-done { background:#F5F8F3; }
+  .qcol-head { display:flex; justify-content:space-between; align-items:center; gap:8px;
+    margin-bottom:10px; padding-bottom:8px; border-bottom:1px dashed var(--line); }
+  .qcol-title { font-size:13px; font-weight:800; color:var(--green); }
+  .qcol-count { font-size:10.5px; font-weight:700; color:var(--muted);
+    background:var(--cream-d); padding:2px 8px; border-radius:10px; }
+  .qact { display:flex; align-items:flex-start; gap:9px; padding:8px 0;
+    border-bottom:1px solid #F4F0E5; cursor:pointer; transition:background 0.1s; user-select:none;
+    border-radius:5px; padding-left:4px; padding-right:4px; }
+  .qact:hover { background:#FBF6EC; }
+  .qact:last-child { border-bottom:none; }
+  .qact.checked { opacity:0.72; }
+  .qcheck { width:24px; height:24px; border-radius:7px; border:2px solid var(--line);
+    flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    transition:all 0.15s; margin-top:1px; background:var(--white); }
+  .qact.checked .qcheck { background:var(--green); border-color:var(--green); }
+  .qcheck svg { width:14px; height:14px; opacity:0; }
+  .qact.checked .qcheck svg { opacity:1; }
+  .qbody { flex:1; min-width:0; }
+  .qlabel { font-size:13px; line-height:1.35; color:var(--ink); }
+  .qact.checked .qlabel { color:var(--muted); text-decoration:line-through; text-decoration-color:var(--line); }
+  .qstars { display:inline-block; margin-top:3px; font-size:10.5px; font-weight:800;
+    color:var(--terra); background:#FFF1D0; padding:2px 8px; border-radius:10px;
+    letter-spacing:0.2px; }
+  .qverified { font-size:9px; color:var(--green); font-weight:800;
+    text-transform:uppercase; margin-left:5px; letter-spacing:0.4px; }
+  .qcol-empty { padding:18px 8px; text-align:center; color:var(--green);
+    background:#F0F6EC; border-radius:8px; font-size:12.5px; font-weight:700; }
+
+  /* ============ REMARKS ============ */
+  .remarks { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+  @media (max-width: 700px) { .remarks { grid-template-columns:1fr; } }
+  .remark-card { background:var(--white); border:1px solid var(--line);
+    border-left:4px solid var(--terra); border-radius:12px; padding:13px 15px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+  .remark-card.baba { border-left-color:var(--green); }
+  .remark-card h3 { font-size:11px; font-weight:800; text-transform:uppercase;
+    letter-spacing:0.8px; color:var(--terra); margin-bottom:4px; }
+  .remark-card.baba h3 { color:var(--green); }
+  .remark-card .sub { font-size:10.5px; color:var(--muted); margin-bottom:8px; }
+  .remark-card textarea { width:100%; min-height:60px; resize:vertical; border:1px solid var(--line);
+    border-radius:8px; padding:9px 11px; font-family:inherit; font-size:12.5px;
+    color:var(--ink); background:var(--cream); line-height:1.45; outline:none; }
+  .remark-card textarea:focus { border-color:var(--terra); background:var(--white); }
+  .remark-card .read-only { font-size:13px; line-height:1.5; color:var(--ink);
+    background:var(--cream); padding:10px 12px; border-radius:8px;
+    min-height:60px; font-style:italic; white-space:pre-wrap; }
+  .remark-card .read-only.empty { color:var(--muted); font-style:italic; }
+
+  /* ============ PRIZE GALLERY ============ */
+  .prize-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:12px; }
+  .prize-card { background:var(--white); border:2px solid var(--line); border-radius:14px;
+    padding:16px 14px 12px; text-align:center; transition:all 0.15s; position:relative; }
+  .prize-card.affordable { border-color:var(--honey); background:#FFFBF2;
+    box-shadow:0 4px 14px rgba(232,185,110,0.25); animation:prizePulse 2.5s infinite; }
+  @keyframes prizePulse {
+    0%,100% { box-shadow:0 4px 14px rgba(232,185,110,0.25); }
+    50% { box-shadow:0 4px 22px rgba(232,185,110,0.45); }
+  }
+  .prize-card.redeemed { border-color:var(--green); background:#F0F6EC; opacity:0.75; }
+  .prize-card .picon { font-size:42px; line-height:1; margin-bottom:6px; }
+  .prize-card .pname { font-size:13px; font-weight:800; color:var(--green);
+    margin:4px 0 4px; line-height:1.25; }
+  .prize-card .pcost { font-size:12px; font-weight:700; color:var(--terra); }
+  .prize-card .pstatus { font-size:9.5px; font-weight:800; text-transform:uppercase;
+    letter-spacing:0.5px; margin-top:8px; }
+  .prize-card.affordable .pstatus { color:var(--terra); }
+  .prize-card.redeemed .pstatus { color:var(--green); }
+  .prize-card .pcountdown { font-size:11px; color:var(--muted); margin-top:6px; font-weight:700; }
+  .prize-card .redeem-btn { margin-top:9px; width:100%; background:var(--terra); color:var(--white);
+    border:none; border-radius:9px; padding:9px; font-size:11.5px; font-weight:800;
+    cursor:pointer; text-transform:uppercase; letter-spacing:0.5px;
+    box-shadow:0 2px 6px rgba(194,114,78,0.25); }
+  .prize-card .redeem-btn:hover { background:var(--terra-d); }
+
+  /* ============ ADMIN PANELS (father) ============ */
+  .panel { background:var(--white); border:1px solid var(--line); border-radius:12px;
+    padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+  .panel h2 { font-size:14px; font-weight:800; color:var(--green); margin-bottom:10px;
+    display:flex; align-items:center; gap:8px; }
+  .panel p { font-size:12.5px; color:var(--muted); margin-bottom:10px; line-height:1.5; }
+  .ed-row { display:flex; gap:8px; align-items:center; padding:7px 0;
+    border-bottom:1px dashed var(--line); flex-wrap:wrap; }
+  .ed-row:last-child { border-bottom:none; }
+  .ed-row label { font-size:11.5px; font-weight:800; color:var(--green); flex:0 0 100px; }
+  .ed-row input, .ed-row select { padding:6px 9px; font-size:12.5px; border:1px solid var(--line);
+    border-radius:6px; font-family:inherit; outline:none; background:var(--white); }
+  .ed-row input:focus, .ed-row select:focus { border-color:var(--terra); }
+  .ed-row input[type="number"] { max-width:80px; }
+  .ed-row .ed-icon { font-size:20px; }
+  .ed-row .ed-grow { flex:1; min-width:120px; }
+  .ed-row .btn-save { padding:6px 11px; background:var(--green); color:var(--cream);
+    border:none; border-radius:6px; font-size:11px; font-weight:800; cursor:pointer;
+    text-transform:uppercase; letter-spacing:0.3px; }
+  .ed-row .btn-del { padding:6px 10px; background:transparent; color:var(--terra);
+    border:1px solid var(--terra); border-radius:6px; font-size:11px; font-weight:800;
+    cursor:pointer; text-transform:uppercase; }
+  .ed-row .btn-del:hover { background:#FBF3EE; }
+
+  /* Drag-and-drop reorder (used in Manage view for blocks, activities, prizes, kids) */
+  .fq-drag-handle { display:inline-flex; align-items:center; justify-content:center;
+    width:18px; height:24px; cursor:grab; color:var(--muted); background:transparent;
+    border:none; font-size:14px; padding:0; touch-action:none; user-select:none;
+    flex-shrink:0; transition:opacity 0.15s, color 0.12s; opacity:0.35; }
+  .fq-drag-handle:hover { color:var(--terra); opacity:1; }
+  .fq-drag-handle:active { cursor:grabbing; opacity:1; }
+  .ed-row .fq-drag-handle { margin-right:2px; }
+  .ed-row.fq-dragging { opacity:0.4; }
+  .ed-row.fq-drop-above { box-shadow:inset 0 3px 0 0 var(--terra); }
+  .ed-row.fq-drop-below { box-shadow:inset 0 -3px 0 0 var(--terra); }
+  .fq-drag-ghost { position:fixed; pointer-events:none; z-index:9999; opacity:0.9;
+    transform:rotate(1deg); box-shadow:0 8px 24px rgba(0,0,0,0.18);
+    background:var(--white); border:1px solid var(--line);
+    border-radius:8px; padding:7px 10px; font-size:13px; font-weight:700;
+    color:var(--green); white-space:nowrap; max-width:340px; overflow:hidden;
+    text-overflow:ellipsis; }
+  @media (hover:none) { .fq-drag-handle { opacity:0.55; } }
+
+  /* Slim vertical add-block button */
+  .fq-add-slim { display:flex; align-items:center; justify-content:center; gap:7px;
+    width:100%; padding:9px 12px; margin-top:10px; background:transparent;
+    border:1.5px dashed var(--line); border-radius:8px; color:var(--muted);
+    font-size:12px; font-weight:800; cursor:pointer;
+    text-transform:uppercase; letter-spacing:0.5px; transition:all 0.15s; }
+  .fq-add-slim:hover { border-color:var(--terra); color:var(--terra);
+    background:#FBF3EE; }
+  .fq-add-slim .plus { font-size:16px; font-weight:800; line-height:1; }
+
+  .add-row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; padding-top:10px;
+    border-top:1px dashed var(--line); }
+  .add-row input { flex:1; min-width:100px; padding:8px 11px; font-size:13px;
+    border:1px solid var(--line); border-radius:7px; font-family:inherit; outline:none; }
+  .add-row input:focus { border-color:var(--terra); box-shadow:0 0 0 3px rgba(194,114,78,0.12); }
+  .add-row select { padding:8px 10px; font-size:12.5px; border:1px solid var(--line);
+    border-radius:7px; font-family:inherit; outline:none; background:var(--white); cursor:pointer; }
+  .add-row button { padding:8px 14px; background:var(--terra); color:var(--white); border:none;
+    border-radius:7px; font-size:12px; font-weight:800; cursor:pointer;
+    text-transform:uppercase; letter-spacing:0.4px; }
+  .add-row button:hover { background:var(--terra-d); }
+  .actions-bar { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .actions-bar button { padding:9px 14px; background:var(--white); border:1px solid var(--line);
+    border-radius:8px; color:var(--muted); font-size:11px; font-weight:800; cursor:pointer;
+    text-transform:uppercase; letter-spacing:0.4px; }
+  .actions-bar button:hover { color:var(--green); border-color:var(--green); }
+  .actions-bar button.danger:hover { color:var(--terra); border-color:var(--terra); }
+
+  /* ============ HISTORY HEATMAP ============ */
+  .hm-card { background:var(--white); border:1px solid var(--line); border-radius:12px;
+    padding:16px 18px; margin-bottom:12px; }
+  .hm-card h2 { font-size:13px; font-weight:800; color:var(--green); margin-bottom:12px; }
+  .heatmap { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
+  .hm-day { aspect-ratio:1; border-radius:5px; background:var(--cream-d);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:10px; font-weight:700; color:var(--muted); }
+  .hm-day .hm-dnum { font-size:11px; }
+  .hm-day .hm-pct { font-size:8px; opacity:0.7; }
+  .hm-day.l1 { background:#FFF1D0; color:var(--green); }
+  .hm-day.l2 { background:#F7D89F; color:var(--green); }
+  .hm-day.l3 { background:#F0B673; color:var(--white); }
+  .hm-day.l4 { background:var(--terra); color:var(--white); }
+  .hm-day.today { box-shadow:0 0 0 2px var(--green); }
+  .hm-legend { display:flex; align-items:center; gap:6px; justify-content:flex-end;
+    margin-top:10px; font-size:10px; color:var(--muted); }
+  .hm-sq { width:12px; height:12px; border-radius:3px; }
+
+  /* ============ BOOKS ============ */
+  .bk-toolbar { background:var(--white); border:1px solid var(--line); border-radius:12px;
+    padding:12px 14px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+  .bk-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .bk-chip { padding:8px 12px; border-radius:9px; border:1.5px solid var(--line);
+    background:var(--white); color:var(--muted); font-size:11.5px; font-weight:800;
+    cursor:pointer; text-transform:uppercase; letter-spacing:0.35px; transition:all 0.15s;
+    display:inline-flex; align-items:center; gap:6px; }
+  .bk-chip:hover { color:var(--green); border-color:var(--green); }
+  .bk-chip.active { background:var(--terra); color:var(--white); border-color:var(--terra);
+    box-shadow:0 2px 6px rgba(194,114,78,0.25); }
+  .bk-chip-count { padding:1px 7px; border-radius:10px; background:rgba(0,0,0,0.06);
+    font-size:10px; font-weight:800; min-width:18px; text-align:center; }
+  .bk-chip.active .bk-chip-count { background:rgba(255,255,255,0.28); }
+  .bk-filters { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .bk-search { flex:1; min-width:160px; padding:8px 12px; border:1px solid var(--line);
+    border-radius:8px; font-size:13px; outline:none; font-family:inherit; }
+  .bk-search:focus { border-color:var(--terra); }
+  .bk-kidsel { padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+    font-size:12px; background:var(--white); outline:none; font-family:inherit; cursor:pointer; }
+  .bk-add { padding:8px 14px; background:var(--terra); color:var(--white); border:none;
+    border-radius:8px; font-size:12px; font-weight:800; cursor:pointer;
+    text-transform:uppercase; letter-spacing:0.4px; }
+  .bk-add:hover { background:var(--terra-d); }
+
+  .bk-cat { background:var(--white); border:1px solid var(--line); border-radius:12px;
+    margin-bottom:10px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+  .bk-cat-head { padding:10px 14px; background:var(--cream-d); display:flex;
+    justify-content:space-between; align-items:center; cursor:pointer; gap:8px; }
+  .bk-cat-head:hover { background:#E8E1D0; }
+  .bk-cat-title { font-size:13px; font-weight:800; color:var(--green); display:flex; align-items:center; gap:6px; }
+  .bk-cat-meta { display:flex; align-items:center; gap:8px; }
+  .bk-cat-count { background:var(--white); border:1px solid var(--line); padding:2px 8px;
+    border-radius:10px; font-size:11px; font-weight:700; color:var(--muted); }
+  .bk-cat-chev { font-size:11px; color:var(--muted); transition:transform 0.2s; }
+  .bk-cat.collapsed .bk-cat-chev { transform:rotate(-90deg); }
+  .bk-cat.collapsed .bk-cat-body { display:none; }
+  .bk-cat-body { padding:4px 0; }
+  .bk-row { display:flex; align-items:center; gap:10px; padding:8px 14px;
+    border-bottom:1px solid #F4F0E5; transition:background 0.12s; }
+  .bk-row:hover { background:#FBF6EC; }
+  .bk-row:last-child { border-bottom:none; }
+  .bk-num { font-size:11px; font-weight:800; color:var(--muted); min-width:24px;
+    text-align:right; font-variant-numeric:tabular-nums; }
+  .bk-info { flex:1; min-width:0; }
+  .bk-title { font-size:13px; font-weight:700; line-height:1.3; word-break:break-word; }
+  .bk-meta-line { font-size:11px; color:var(--muted); margin-top:2px;
+    display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .bk-author { font-style:italic; }
+  .bk-note { color:var(--terra); }
+  .bk-att { color:var(--green); text-decoration:none; font-weight:700; }
+  .bk-att:hover { text-decoration:underline; }
+  .bk-status-row { display:flex; gap:4px; flex-wrap:wrap; margin-top:4px; }
+  .bk-rb { font-size:10px; padding:2px 8px; border-radius:10px; font-weight:700;
+    letter-spacing:0.2px; cursor:pointer; border:1px solid transparent;
+    background:var(--cream-d); color:var(--muted); transition:all 0.15s; }
+  .bk-rb:hover { border-color:var(--terra); }
+  .bk-rb.reading { background:#FBF3EE; color:var(--terra); border-color:var(--terra); }
+  .bk-rb.next    { background:#FFF1D0; color:#9C7330; border-color:var(--honey); }
+  .bk-rb.done    { background:#E4EBE2; color:var(--green); border-color:var(--green); }
+  .bk-actions { display:flex; gap:4px; flex-shrink:0; }
+  .bk-act-btn { padding:4px 8px; background:transparent; border:1px solid var(--line);
+    border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; color:var(--muted); }
+  .bk-act-btn:hover { color:var(--terra); border-color:var(--terra); }
+  .bk-empty { padding:40px 20px; text-align:center; color:var(--muted); font-style:italic; }
+
+  /* Reader-group block for status views */
+  .bk-rgrp { background:var(--white); border:1px solid var(--line); border-radius:12px;
+    margin-bottom:12px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+  .bk-rgrp-head { padding:10px 14px; background:#FBF3EE; display:flex;
+    justify-content:space-between; align-items:center; border-bottom:1px solid #F0EADC; }
+  .bk-rgrp-title { font-size:13px; font-weight:800; color:var(--terra); display:flex;
+    align-items:center; gap:8px; letter-spacing:0.2px; }
+  .bk-rgrp-avatar { font-size:18px; }
+  .bk-rgrp-count { background:var(--terra); color:var(--white); font-size:10.5px;
+    font-weight:800; border-radius:10px; padding:2px 10px; }
+
+  /* Book modal */
+  .bk-flab { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:800;
+    color:var(--green); letter-spacing:0.3px; text-transform:uppercase; }
+  .bk-fin { padding:8px 10px; border:1px solid var(--line); border-radius:7px;
+    font-size:13px; font-family:inherit; outline:none; color:var(--ink);
+    font-weight:400; text-transform:none; letter-spacing:0; background:var(--white); }
+  .bk-fin:focus { border-color:var(--terra); box-shadow:0 0 0 3px rgba(194,114,78,0.12); }
+
+  /* ============ MODAL / TOAST ============ */
+  .modal-bg { position:fixed; inset:0; background:rgba(45,74,58,0.55);
+    display:none; align-items:center; justify-content:center; z-index:200; padding:20px; }
+  .modal-bg.show { display:flex; }
+  .modal { background:var(--white); border-radius:16px; padding:22px; max-width:380px; width:100%;
+    box-shadow:0 12px 40px rgba(0,0,0,0.2); }
+  .modal h3 { font-size:16px; color:var(--green); font-weight:800; margin-bottom:6px; }
+  .modal p { font-size:13px; color:var(--ink); margin-bottom:14px; }
+  .modal-actions { display:flex; gap:8px; }
+  .modal-actions button { flex:1; padding:11px; border:none; border-radius:9px;
+    font-size:12px; font-weight:800; cursor:pointer; text-transform:uppercase; letter-spacing:0.5px; }
+  .modal-ok { background:var(--terra); color:var(--white); }
+  .modal-ok.green { background:var(--green); }
+  .modal-cancel { background:transparent; color:var(--muted); border:1px solid var(--line); }
+
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:var(--green); color:var(--cream); padding:11px 18px; border-radius:10px;
+    font-size:13px; font-weight:700; z-index:300; opacity:0; transition:opacity 0.2s, transform 0.2s;
+    box-shadow:0 8px 24px rgba(0,0,0,0.2); pointer-events:none; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(-4px); }
+
+  .celebrate { position:fixed; inset:0; pointer-events:none; z-index:250;
+    display:flex; align-items:center; justify-content:center; }
+  .celebrate.show .burst { animation:burstPop 1s ease-out forwards; }
+  .celebrate .burst { font-size:90px; opacity:0; }
+  @keyframes burstPop { 0%{transform:scale(0);opacity:0;} 35%{transform:scale(1.4);opacity:1;}
+    100%{transform:scale(1);opacity:0;} }
+
+  .empty { text-align:center; color:var(--muted); font-size:13px; padding:24px;
+    font-style:italic; }
+
+  /* Print */
+  @media print {
+    .topbar .user-info, .tabs, .actions-bar, .add-row, .ed-row .btn-save, .ed-row .btn-del,
+    .kid-tab:not(.active), .remark-card textarea { display:none !important; }
+    .login-screen { display:none !important; }
+    body { background:#fff; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <h1>Family <span class="accent">Quest</span></h1>
+    <div class="login-sub">Pick who you are and enter your PIN</div>
+    <div class="role-grid" id="roleGrid"></div>
+    <input type="password" id="loginPinInput" class="login-pin" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off">
+    <div class="login-err" id="loginErr"></div>
+    <div class="login-actions">
+      <button class="login-enter" onclick="submitLogin()">Enter</button>
+    </div>
+    <div class="login-defaults" id="loginDefaults">
+      <b>Default PINs:</b> Father <code>1234</code> · Mother <code>1234</code> · Kids <code>0001</code>, <code>0002</code><br>
+      Change any PIN from <b>Settings</b> after logging in as Father.
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="app hidden">
+  <div class="topbar">
+    <div class="title-block">
+      <h1>Family <span class="accent">Quest</span></h1>
+      <div class="date" id="dateLabel"></div>
+    </div>
+    <div class="user-info">
+      <span class="uavatar" id="userAvatar"></span>
+      <span class="uname" id="userName"></span>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- Kid switcher — parents only -->
+  <div id="kidTabs" class="kid-tabs"></div>
+
+  <!-- Tabs -->
+  <div id="appTabs" class="tabs"></div>
+
+  <!-- Views -->
+  <div id="todayView"></div>
+  <div id="prizesView" class="hidden"></div>
+  <div id="booksView" class="hidden"></div>
+  <div id="historyView" class="hidden"></div>
+  <div id="manageView" class="hidden"></div>
+  <div id="settingsView" class="hidden"></div>
+</div>
+
+<!-- Book add/edit modal -->
+<div id="bookModal" class="modal-bg">
+  <div class="modal" style="max-width:440px;">
+    <h3 id="bookModalTitle">Add Book</h3>
+    <div class="bk-form" style="display:flex;flex-direction:column;gap:10px;">
+      <label class="bk-flab">Title <input type="text" id="bkTitle" class="bk-fin"></label>
+      <label class="bk-flab">Author <input type="text" id="bkAuthor" class="bk-fin"></label>
+      <label class="bk-flab">Category
+        <select id="bkCat" class="bk-fin"></select>
+      </label>
+      <label class="bk-flab">Note <input type="text" id="bkNote" class="bk-fin" placeholder="e.g. ages 3-6, optional"></label>
+      <label class="bk-flab">Attachment URL <input type="url" id="bkAttUrl" class="bk-fin" placeholder="https://drive.google.com/… or any link"></label>
+      <label class="bk-flab">Attachment label <input type="text" id="bkAttName" class="bk-fin" placeholder="e.g. PDF on Drive (optional)"></label>
+    </div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="modal-cancel" onclick="closeBookModal()">Cancel</button>
+      <button class="modal-ok" onclick="saveBookForm()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm modal -->
+<div id="confirmModal" class="modal-bg">
+  <div class="modal">
+    <h3 id="confirmTitle">Confirm</h3>
+    <p id="confirmMsg">Are you sure?</p>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeConfirm(false)">Cancel</button>
+      <button class="modal-ok" id="confirmOkBtn" onclick="closeConfirm(true)">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- File import (hidden) -->
+<input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(event)">
+
+<div class="toast" id="toast"></div>
+<div class="celebrate" id="celebrate"><div class="burst" id="burstEmoji">🎉</div></div>
+
+<script>
+// ============================================================================
+// DATA LAYER
+// ============================================================================
+const STORE_KEY = 'fq_v2_data';
+
+const DEFAULT_BLOCKS = [
+  { id:'morning', title:'🌅 Morning' },
+  { id:'learn',   title:'📚 Learning' },
+  { id:'active',  title:'⚡ Active' },
+  { id:'evening', title:'🌙 Evening' },
+];
+
+const DEFAULT_ACTIVITIES = [
+  // Morning
+  { id:'a01', label:'Wake up on time',                       stars:10, blockId:'morning' },
+  { id:'a02', label:'Tidy room',                             stars:10, blockId:'morning' },
+  { id:'a03', label:'Freshen up on time',                    stars:10, blockId:'morning' },
+  { id:'a04', label:'Breakfast on time',                     stars:10, blockId:'morning' },
+  // Learning
+  { id:'a05', label:'Quraan & Islam learning',               stars:20, blockId:'learn' },
+  { id:'a06', label:'Language learning (English/Arabic/other)', stars:15, blockId:'learn' },
+  { id:'a07', label:'Conventional learning',                 stars:15, blockId:'learn' },
+  { id:'a08', label:'Tech learning',                         stars:15, blockId:'learn' },
+  { id:'a09', label:'Mental exercise',                       stars:15, blockId:'learn' },
+  // Active
+  { id:'a10', label:'Physical exercise (home/park)',         stars:15, blockId:'active' },
+  { id:'a11', label:'Outing (self dress up on time)',        stars:10, blockId:'active' },
+  { id:'a12', label:'Help with a chore',                     stars:15, blockId:'active' },
+  // Evening
+  { id:'a13', label:'Story from mama/baba',                  stars:10, blockId:'evening' },
+  { id:'a14', label:'Book reading (library or home)',        stars:15, blockId:'evening' },
+  { id:'a15', label:'Write diary',                           stars:10, blockId:'evening' },
+  { id:'a16', label:'All 5 prayers (Fajr, Dhuhr, Asr, Maghrib, Isha)', stars:25, blockId:'evening' },
+  { id:'a17', label:'Sleep on time',                         stars:15, blockId:'evening' },
+];
+
+const DEFAULT_PRIZES = [
+  { id:'p1', icon:'🧸', name:'Toy',                     cost:200 },
+  { id:'p2', icon:'🎮', name:'Game in mall or outside', cost:300 },
+  { id:'p3', icon:'🚗', name:'In-city trip',            cost:500 },
+  { id:'p4', icon:'🛍', name:'Mall outing',             cost:250 },
+  { id:'p5', icon:'🍽', name:'Restaurant',              cost:300 },
+  { id:'p6', icon:'🎬', name:'Movie / anything',        cost:250 },
+  { id:'p7', icon:'🎡', name:'Theme park trip',         cost:1000 },
+  { id:'p8', icon:'✈️', name:'Long trip',                cost:1500 },
+];
+
+const DAY_BONUS = 25;  // bonus for finishing every activity in a day
+
+// ----- Kids' Reading List (78 books · 14 categories · The Reading List Vol. 02) -----
+const BK_CATEGORIES = ['Mental Health','Positivity','Character Building','Productivity',
+  'Idea Generation','Future-Proof Thinking','History & Geography','Understanding People',
+  'Networking','Business Understanding','Entrepreneurship','Sales & Marketing',
+  'Technology','Cybersecurity & Digital Safety'];
+
+const DEFAULT_KID_BOOKS = [
+  ['Mental Health','The Color Monster','Anna Llenas','ages 3-6'],
+  ['Mental Health','In My Heart: A Book of Feelings','Jo Witek',''],
+  ['Mental Health','Ruby Finds a Worry','Tom Percival',''],
+  ['Mental Health','Listening to My Body','Gabi Garcia',''],
+  ['Mental Health','My Magic Breath','Ortner & Taylor',''],
+  ['Mental Health','Your Fantastic Elastic Brain','JoAnn Deak','neuroplasticity'],
+  ['Positivity','Have You Filled a Bucket Today?','Carol McCloud',''],
+  ['Positivity','I Am Enough','Grace Byers',''],
+  ['Positivity','The Wonderful Things You Will Be','E.W. Martin',''],
+  ['Positivity','Today I Feel Silly','Jamie Lee Curtis',''],
+  ['Positivity','The Boy, the Mole, the Fox and the Horse','Charlie Mackesy',''],
+  ['Character Building','The 7 Habits of Happy Kids','Sean Covey',''],
+  ['Character Building','Bubble Gum Brain','Julia Cook','growth mindset'],
+  ['Character Building','Last Stop on Market Street','Matt de la Peña',''],
+  ['Character Building','Stand Tall, Molly Lou Melon','Patty Lovell',''],
+  ['Character Building','After the Fall','Dan Santat','resilience'],
+  ['Character Building','Wonder','R.J. Palacio','middle grade'],
+  ["Character Building","Charlotte's Web",'E.B. White',''],
+  ['Character Building','The One and Only Ivan','K. Applegate',''],
+  ['Productivity','What Do You Do With a Problem?','Kobi Yamada',''],
+  ['Productivity','My Mouth Is a Volcano!','Julia Cook','impulse control'],
+  ['Productivity','Get Organized Without Losing It','Janet S. Fox','ages 8-12'],
+  ['Productivity','The 7 Habits of Highly Effective Teens','Sean Covey',''],
+  ['Idea Generation','What Do You Do With an Idea?','Kobi Yamada',''],
+  ['Idea Generation','The Dot','Peter H. Reynolds',''],
+  ['Idea Generation','Ish','Peter H. Reynolds',''],
+  ['Idea Generation','The Most Magnificent Thing','Ashley Spires',''],
+  ['Idea Generation','Rosie Revere, Engineer','Andrea Beaty',''],
+  ['Idea Generation','Not a Box','Antoinette Portis',''],
+  ['Future-Proof Thinking','Astrophysics for Young People in a Hurry','N. deGrasse Tyson',''],
+  ['Future-Proof Thinking','Ultimate Book of the Future','S.W. Drimmer','Nat Geo Kids'],
+  ['Future-Proof Thinking','Mae Among the Stars','Roda Ahmed',''],
+  ['Future-Proof Thinking','Counting on Katherine','Helaine Becker',''],
+  ['Future-Proof Thinking','Factfulness','Hans Rosling','teens+'],
+  ['History & Geography','Maps','Aleksandra & Daniel Mizielinski','stunning atlas'],
+  ['History & Geography','A Little History of the World','E.H. Gombrich','illustrated edition'],
+  ['History & Geography','If the World Were a Village','David J. Smith',''],
+  ['History & Geography','The Story of the World, Vol. 1','Susan Wise Bauer',''],
+  ['History & Geography','Atlas of Adventures','Lucy Letherland',''],
+  ['History & Geography','Who Was…? series','various authors','biographies'],
+  ["Understanding People","We're All Wonders",'R.J. Palacio',''],
+  ['Understanding People','Each Kindness','Jacqueline Woodson',''],
+  ['Understanding People','You, Me and Empathy','Jayneen Sanders',''],
+  ['Understanding People','The Day You Begin','Jacqueline Woodson',''],
+  ['Understanding People','Enemy Pie','Derek Munson',''],
+  ['Networking','How to Be a Friend','Laurie Krasny Brown',''],
+  ['Networking','Should I Share My Ice Cream?','Mo Willems',''],
+  ['Networking','The Rabbit Listened','Cori Doerrfeld',''],
+  ['Networking','How to Win Friends & Influence People for Teens','D.D. Carnegie',''],
+  ['Business Understanding','Understanding Business','Hall & Bryan','illustrated'],
+  ['Business Understanding','Business Basics for Kids: Lemonade Stand','FintekCafe',''],
+  ['Business Understanding','The Toothpaste Millionaire','Jean Merrill',''],
+  ['Business Understanding','The Lemonade War','Jacqueline Davies',''],
+  ['Entrepreneurship','What Does It Mean to Be an Entrepreneur?','DiOrio & Dryden',''],
+  ['Entrepreneurship','Kidpreneurs','Adam & Matthew Toren',''],
+  ["Entrepreneurship","When I'm an Entrepreneur",'Samantha Pillay',''],
+  ['Entrepreneurship','Jasmine Launches a Startup','Bachar Karroum',''],
+  ['Entrepreneurship','Kid Start-Up','Mark Cuban et al.',''],
+  ['Entrepreneurship','Millionaire Kids','Emily Lin','teen role models'],
+  ['Entrepreneurship','How to Turn $100 into $1,000,000','Heath & Cox',''],
+  ['Entrepreneurship','Better Than a Lemonade Stand','Daryl Bernstein',''],
+  ['Sales & Marketing','Mad for Ads','Erica Fyvie','decode advertising'],
+  ['Sales & Marketing','Logo Design Fundamentals','Kris Taft Miller',''],
+  ['Sales & Marketing','The Lemonade War (series)','Jacqueline Davies',''],
+  ['Sales & Marketing','Lawn Boy','Gary Paulsen',''],
+  ['Technology','Hello Ruby','Linda Liukas','computational thinking'],
+  ['Technology','How to Code a Sandcastle','Josh Funk',''],
+  ['Technology','Grace Hopper: Queen of Computer Code','L. Wallmark',''],
+  ['Technology','Girls Who Code','Reshma Saujani',''],
+  ['Technology','Secret Coders (graphic novel)','Gene Luen Yang',''],
+  ['Technology','The Wild Robot','Peter Brown','AI as a story'],
+  ['Cybersecurity & Digital Safety','Chicken Clicking','Jeanne Willis','online strangers'],
+  ['Cybersecurity & Digital Safety','Troll Stinks!','Jeanne Willis','cyberbullying'],
+  ['Cybersecurity & Digital Safety','The Technology Tail','Julia Cook','digital footprint'],
+  ['Cybersecurity & Digital Safety','But I Read It on the Internet!','Toni Buzzeo',''],
+  ['Cybersecurity & Digital Safety','Doug Unplugged','Dan Yaccarino','screen balance'],
+  ['Cybersecurity & Digital Safety','If You Give a Mouse an iPhone','Ann Droyd',''],
+  ["Cybersecurity & Digital Safety","A Smart Girl's Guide: Digital World",'American Girl','tweens'],
+];
+
+let appData = null;
+// Cloud-first DB adapter:
+//   1. Supabase (if user has pasted URL + anon key in Cloud Sync settings)
+//   2. Local serve.py file-DB at /db/family_quest (when running locally)
+//   3. localStorage only (offline / static-only deploy without setup)
+// All three are write-through: the active one persists, the others
+// serve as caches / fallbacks.
+const APP_NAME = 'family_quest';
+const DB_URL = '/db/family_quest';
+const SB_CONFIG_KEY = 'tracker_supabase';   // shared with Noman tracker
+let _dbAvailable = false;
+let _sbClient = null;
+let _sbConfigCache = null;
+function getSupabaseConfig(){
+  try { return JSON.parse(localStorage.getItem(SB_CONFIG_KEY) || 'null'); } catch(e){ return null; }
+}
+function setSupabaseConfig(cfg){
+  if(!cfg || !cfg.url || !cfg.key){ localStorage.removeItem(SB_CONFIG_KEY); _sbClient = null; return; }
+  localStorage.setItem(SB_CONFIG_KEY, JSON.stringify({ url: cfg.url.trim(), key: cfg.key.trim() }));
+  _sbClient = null;   // force re-create
+}
+function _sb(){
+  const cfg = getSupabaseConfig();
+  if(!cfg || !cfg.url || !cfg.key) return null;
+  if(!window.supabase || !window.supabase.createClient) return null;
+  if(!_sbClient || !_sbConfigCache || _sbConfigCache.url !== cfg.url || _sbConfigCache.key !== cfg.key){
+    try {
+      _sbClient = window.supabase.createClient(cfg.url, cfg.key, { auth:{ persistSession:false } });
+      _sbConfigCache = cfg;
+    } catch(e){ _sbClient = null; }
+  }
+  return _sbClient;
+}
+async function _dbFetch(){
+  // 1. Supabase first (cloud, multi-device)
+  const sb = _sb();
+  if(sb){
+    try {
+      const { data, error } = await sb.from('app_state').select('data').eq('app_name', APP_NAME).maybeSingle();
+      if(!error && data && data.data && typeof data.data === 'object'){
+        _dbAvailable = true;
+        return Object.keys(data.data).length ? data.data : null;
+      }
+    } catch(e){ /* fall through to local */ }
+  }
+  // 2. Local serve.py
+  try {
+    const r = await fetch(DB_URL, { cache:'no-store' });
+    if(!r.ok) return null;
+    _dbAvailable = true;
+    const data = await r.json();
+    return (data && typeof data === 'object' && Object.keys(data).length) ? data : null;
+  } catch(e){ return null; }
+}
+let _dbSaveTimer = null;
+function _dbPushSoon(){
+  clearTimeout(_dbSaveTimer);
+  _dbSaveTimer = setTimeout(() => {
+    const sb = _sb();
+    if(sb){
+      try {
+        sb.from('app_state').upsert({ app_name: APP_NAME, data: appData })
+          .then(({error}) => { if(error) console.warn('Supabase push failed:', error.message); });
+      } catch(e){}
+      return;
+    }
+    if(!_dbAvailable) return;
+    try {
+      fetch(DB_URL, { method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(appData),
+        keepalive: true,
+      }).catch(()=>{});
+    } catch(e){}
+  }, 250);
+}
+// Flush pending saves on tab close so a fast Cmd-W doesn't lose the last change.
+// (sendBeacon only targets local /db; Supabase pushes finish faster than tab close anyway.)
+window.addEventListener('beforeunload', () => {
+  if(!_dbAvailable || _sb()) return;
+  try {
+    const blob = new Blob([JSON.stringify(appData)], {type:'application/json'});
+    navigator.sendBeacon(DB_URL, blob);
+  } catch(e){}
+});
+
+// Manual "Push current data to cloud" — used by the migration button.
+async function pushToCloudNow(){
+  const sb = _sb();
+  if(!sb) throw new Error('Supabase not configured. Paste URL + anon key first.');
+  const { error } = await sb.from('app_state').upsert({ app_name: APP_NAME, data: appData });
+  if(error) throw new Error(error.message);
+}
+
+// Conservative richness score — used so a near-empty server snapshot can't
+// silently destroy a fuller localStorage copy (and vice-versa).
+function _fqScore(d){
+  if(!d || typeof d !== 'object') return -1;
+  return (d.kids?.length||0)*10 + (d.blocks?.length||0)*5 +
+         (d.activities?.length||0) + (d.prizes?.length||0) +
+         (d.books?.length||0) + Object.keys(d.progress||{}).length +
+         Object.keys(d.redeemed||{}).length;
+}
+async function loadData(){
+  let fromLocal = null;
+  try { fromLocal = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); }
+  catch(e){ fromLocal = null; }
+  const fromServer = await _dbFetch();
+  const sLocal  = _fqScore(fromLocal);
+  const sServer = _fqScore(fromServer);
+  // Pick the richer of the two. If local wins, push it back to the server so
+  // the next load gets the good data and the file on disk is healed.
+  if(sServer > sLocal){
+    appData = fromServer;
+  } else if(sLocal > -1){
+    appData = fromLocal;
+    if(_dbAvailable && sLocal > sServer) _dbPushSoon();
+  } else if(fromServer){
+    appData = fromServer;
+  } else {
+    appData = null;
+  }
+  _applyDefaults();
+}
+// Applies defensive schema migration + persists. Used after both fresh boot
+// and after a manual data load (import / reset).
+function _applyDefaults(){
+  if(!appData) appData = {};
+  if(!appData.passwords || typeof appData.passwords !== 'object') appData.passwords = {};
+  if(!appData.passwords.father) appData.passwords.father = '1234';
+  if(!appData.passwords.mother) appData.passwords.mother = '1234';
+  if(!Array.isArray(appData.kids) || appData.kids.length === 0){
+    appData.kids = [
+      { id:'k1', name:'Child 1', avatar:'🦁', password:'0001' },
+      { id:'k2', name:'Child 2', avatar:'🦊', password:'0002' },
+    ];
+  }
+  appData.kids.forEach((k,i)=>{
+    if(!k.id) k.id = 'k'+(i+1);
+    if(!k.name) k.name = 'Child '+(i+1);
+    if(!k.avatar) k.avatar = '🧒';
+    if(!k.password) k.password = '000'+(i+1);
+  });
+  if(!Array.isArray(appData.blocks)) appData.blocks = JSON.parse(JSON.stringify(DEFAULT_BLOCKS));
+  if(!Array.isArray(appData.activities)) appData.activities = JSON.parse(JSON.stringify(DEFAULT_ACTIVITIES));
+  if(!Array.isArray(appData.prizes)) appData.prizes = JSON.parse(JSON.stringify(DEFAULT_PRIZES));
+  if(!appData.progress) appData.progress = {};   // {kidId: {dateKey: {checked:{actId:{ts,by}}, momRemark, dadRemark}}}
+  if(!appData.redeemed) appData.redeemed = {};   // {kidId: [{prizeId, date}]}
+  if(!appData.starsAdj) appData.starsAdj = {};   // {kidId: number}
+  // Books — kids' reading list
+  if(!Array.isArray(appData.books) || appData.books.length === 0){
+    appData.books = DEFAULT_KID_BOOKS.map((b, i) => ({
+      id: 'bk_' + i,
+      category: b[0], title: b[1], author: b[2], note: b[3] || '',
+      attachmentUrl: '', attachmentName: '',
+      readerStatus: {},   // { kidId: 'next' | 'reading' | 'done' }
+      createdAt: new Date().toISOString(),
+    }));
+  }
+  appData.books.forEach(b => {
+    if (!b.readerStatus) b.readerStatus = {};
+    if (typeof b.attachmentUrl !== 'string') b.attachmentUrl = '';
+    if (typeof b.attachmentName !== 'string') b.attachmentName = '';
+  });
+  if(!appData.booksCollapsed) appData.booksCollapsed = {};
+  saveData();
+}
+function saveData(){
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(appData)); } catch(e){}
+  _dbPushSoon();
+}
+
+function todayKey(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function dateKeyFor(o){ const d=new Date(); d.setDate(d.getDate()-o); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function dayRec(kid, dk){
+  appData.progress[kid] = appData.progress[kid] || {};
+  appData.progress[kid][dk] = appData.progress[kid][dk] || { checked:{}, momRemark:'', dadRemark:'' };
+  // Backfill checked from older boolean format
+  Object.keys(appData.progress[kid][dk].checked).forEach(aid => {
+    const v = appData.progress[kid][dk].checked[aid];
+    if (v === true) appData.progress[kid][dk].checked[aid] = { ts: new Date().toISOString(), by:'?' };
+  });
+  return appData.progress[kid][dk];
+}
+
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ============================================================================
+// AUTH & ROLES
+// ============================================================================
+let currentUser = null; // { role:'father'|'mother'|'kid', kidId?, name, avatar }
+let activeKidId = null; // for parent views — which kid is currently shown
+let pickedRole = null;  // for login modal
+
+function renderLogin(){
+  const grid = document.getElementById('roleGrid');
+  grid.innerHTML = '';
+  const roles = [
+    { kind:'father', label:'Father', sub:'Admin',     avatar:'👤' },
+    { kind:'mother', label:'Mother', sub:'View kids', avatar:'👩' },
+  ];
+  appData.kids.forEach(k => roles.push({ kind:'kid', kidId:k.id, label:k.name, sub:'My quest', avatar:k.avatar }));
+  roles.forEach((r,i) => {
+    const d = document.createElement('div');
+    d.className = 'role-btn' + (i===0?' selected':'');
+    if(i===0) pickedRole = r;
+    d.innerHTML = `<div class="ravatar">${escapeHtml(r.avatar)}</div>
+      <div class="rname">${escapeHtml(r.label)}</div>
+      <div class="rrole">${escapeHtml(r.sub)}</div>`;
+    d.onclick = () => {
+      grid.querySelectorAll('.role-btn').forEach(x => x.classList.remove('selected'));
+      d.classList.add('selected');
+      pickedRole = r;
+      document.getElementById('loginErr').textContent = '';
+      document.getElementById('loginPinInput').focus();
+    };
+    grid.appendChild(d);
+  });
+}
+
+function submitLogin(){
+  const pin = document.getElementById('loginPinInput').value;
+  const err = document.getElementById('loginErr');
+  if(!pickedRole){ err.textContent = 'Pick a role first.'; return; }
+  let ok = false;
+  if(pickedRole.kind === 'father' && pin === appData.passwords.father){ ok = true; }
+  else if(pickedRole.kind === 'mother' && pin === appData.passwords.mother){ ok = true; }
+  else if(pickedRole.kind === 'kid'){
+    const k = appData.kids.find(x => x.id === pickedRole.kidId);
+    if(k && pin === k.password){ ok = true; }
+  }
+  if(!ok){ err.textContent = 'Wrong PIN. Try again.'; return; }
+  currentUser = { role:pickedRole.kind, kidId:pickedRole.kidId, name:pickedRole.label, avatar:pickedRole.avatar };
+  if(currentUser.role === 'kid') activeKidId = currentUser.kidId;
+  else activeKidId = appData.kids[0] ? appData.kids[0].id : null;
+  _saveSession(currentUser);
+  enterApp();
+}
+
+// ----- 30-day session persistence so refresh doesn't re-prompt for PIN -----
+const SESSION_KEY = 'fq_session';
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;   // 30 days
+function _saveSession(user){
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      user, expiresAt: Date.now() + SESSION_TTL_MS,
+    }));
+  } catch(e){}
+}
+function _loadSession(){
+  try {
+    const raw = localStorage.getItem(SESSION_KEY); if(!raw) return null;
+    const s = JSON.parse(raw);
+    if(!s || !s.user || !s.expiresAt || s.expiresAt < Date.now()) return null;
+    // Validate the user still exists (kid may have been deleted, role still valid)
+    if(s.user.role === 'kid'){
+      const k = appData.kids.find(x => x.id === s.user.kidId);
+      if(!k) return null;
+      // Refresh display fields from current data
+      s.user.name = k.name; s.user.avatar = k.avatar;
+    } else if(s.user.role !== 'father' && s.user.role !== 'mother'){
+      return null;
+    }
+    return s.user;
+  } catch(e){ return null; }
+}
+function _clearSession(){ try { localStorage.removeItem(SESSION_KEY); } catch(e){} }
+function tryAutoLogin(){
+  const user = _loadSession();
+  if(!user) return false;
+  currentUser = user;
+  activeKidId = (user.role === 'kid')
+    ? user.kidId
+    : (appData.kids[0] ? appData.kids[0].id : null);
+  enterApp();
+  return true;
+}
+
+function logout(){
+  _clearSession();
+  currentUser = null; activeKidId = null; pickedRole = null;
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('loginPinInput').value = '';
+  document.body.classList.remove('role-kid','role-mother','role-father');
+  renderLogin();
+}
+
+function enterApp(){
+  // Reset transient Books view state on each login
+  bkStatusView = 'library';
+  _bkSearchVal = '';
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.body.classList.remove('role-kid','role-mother','role-father');
+  document.body.classList.add('role-'+currentUser.role);
+  document.getElementById('userAvatar').textContent = currentUser.avatar;
+  document.getElementById('userName').textContent = currentUser.name;
+  document.getElementById('dateLabel').textContent = new Date().toLocaleDateString('en-GB',
+    { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  renderTabs();
+  renderKidTabs();
+  switchView('today');
+}
+
+// ============================================================================
+// STARS & STREAK
+// ============================================================================
+function activitiesAll(){ return appData.activities; }
+function computeDayStars(kid, dk){
+  const rec = (appData.progress[kid]||{})[dk];
+  if(!rec) return 0;
+  let s = 0, allDone = true;
+  appData.activities.forEach(a => {
+    if (rec.checked[a.id]) s += (a.stars || 0);
+    else allDone = false;
+  });
+  if (allDone && appData.activities.length > 0) s += DAY_BONUS;
+  return s;
+}
+function totalStars(kid){
+  let s = 0;
+  const prog = appData.progress[kid] || {};
+  Object.keys(prog).forEach(dk => { s += computeDayStars(kid, dk); });
+  const red = appData.redeemed[kid] || [];
+  red.forEach(r => { const p = appData.prizes.find(x => x.id === r.prizeId); if(p) s -= p.cost; });
+  s += (appData.starsAdj[kid] || 0);
+  return s;
+}
+function streakFor(kid){
+  const prog = appData.progress[kid] || {};
+  const total = appData.activities.length || 1;
+  let s = 0;
+  for(let i=0;i<200;i++){
+    const dk = dateKeyFor(i);
+    const rec = prog[dk];
+    const done = rec ? appData.activities.filter(a => rec.checked[a.id]).length : 0;
+    const pct = done / total;
+    if (pct >= 0.7) s++;
+    else if (i === 0) continue;
+    else break;
+  }
+  return s;
+}
+
+// ============================================================================
+// TABS & VIEWS
+// ============================================================================
+function tabsForRole(){
+  if(currentUser.role === 'father') return [
+    {id:'today',    label:'Today'},
+    {id:'prizes',   label:'Prizes'},
+    {id:'books',    label:'Books'},
+    {id:'history',  label:'History'},
+    {id:'manage',   label:'Manage'},
+    {id:'settings', label:'Settings'},
+  ];
+  if(currentUser.role === 'mother') return [
+    {id:'today',   label:'Today'},
+    {id:'prizes',  label:'Prizes'},
+    {id:'books',   label:'Books'},
+    {id:'history', label:'History'},
+  ];
+  // kid
+  return [
+    {id:'today',   label:'My Quests'},
+    {id:'prizes',  label:'Prizes'},
+    {id:'books',   label:'My Books'},
+    {id:'history', label:'My Streak'},
+  ];
+}
+function renderTabs(){
+  const c = document.getElementById('appTabs');
+  c.innerHTML = '';
+  tabsForRole().forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'tab';
+    b.dataset.id = t.id;
+    b.textContent = t.label;
+    b.onclick = () => switchView(t.id);
+    c.appendChild(b);
+  });
+}
+function switchView(v){
+  ['today','prizes','books','history','manage','settings'].forEach(x => {
+    const el = document.getElementById(x+'View');
+    if(el) el.classList.toggle('hidden', x !== v);
+  });
+  document.querySelectorAll('#appTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.id === v));
+  if(v === 'today')    renderToday();
+  if(v === 'prizes')   renderPrizes();
+  if(v === 'books')    renderBooks();
+  if(v === 'history')  renderHistory();
+  if(v === 'manage')   renderManage();
+  if(v === 'settings') renderSettings();
+}
+
+function renderKidTabs(){
+  const c = document.getElementById('kidTabs');
+  if(currentUser.role === 'kid' || appData.kids.length === 0){ c.classList.add('hidden'); c.innerHTML=''; return; }
+  c.classList.remove('hidden');
+  c.innerHTML = '';
+  appData.kids.forEach(k => {
+    const d = document.createElement('div');
+    d.className = 'kid-tab' + (k.id === activeKidId ? ' active' : '');
+    d.onclick = () => { activeKidId = k.id; renderKidTabs(); renderCurrentView(); };
+    d.innerHTML = `<div class="kavatar">${escapeHtml(k.avatar)}</div>
+      <div class="kname">${escapeHtml(k.name)}</div>
+      <div class="kstars">${totalStars(k.id)} ★</div>`;
+    c.appendChild(d);
+  });
+}
+function renderCurrentView(){
+  const active = document.querySelector('#appTabs .tab.active');
+  if(active) switchView(active.dataset.id);
+}
+
+// ============================================================================
+// TODAY VIEW (kanban + stars hero + remarks)
+// ============================================================================
+function renderToday(){
+  const wrap = document.getElementById('todayView');
+  if(!activeKidId){ wrap.innerHTML = '<div class="empty">No kids defined. Add one in Manage.</div>'; return; }
+  const kid = appData.kids.find(k => k.id === activeKidId);
+  const rec = dayRec(activeKidId, todayKey());
+  const total = totalStars(activeKidId);
+  const todayStars = computeDayStars(activeKidId, todayKey());
+  const streak = streakFor(activeKidId);
+
+  // Hero
+  let html = `<div class="stars-hero">
+    <div class="hero-label">⭐ ${escapeHtml(kid.name)}'s Total Stars</div>
+    <div class="hero-count">${total}<span class="hs"> ★</span></div>
+    <div class="hero-streak">Today: <b>+${todayStars}</b> · Streak: <b>${streak}</b> day${streak===1?'':'s'} 🔥</div>
+  </div>`;
+
+  // Next prize progress
+  const np = nextPrizeFor(activeKidId);
+  if(np){
+    const pct = Math.min(100, Math.round(total / np.cost * 100));
+    const remain = Math.max(0, np.cost - total);
+    html += `<div class="next-prize">
+      <div class="np-top">
+        <span class="np-label">Next Prize</span>
+        <span class="np-target">${escapeHtml(np.icon)} ${escapeHtml(np.name)}</span>
+      </div>
+      <div class="np-bar"><div class="np-fill" style="width:${pct}%"></div></div>
+      <div class="np-sub">${remain>0 ? `<b>${remain} more stars</b> to unlock` : 'Unlocked! Open <b>Prizes</b> to redeem 🎉'}</div>
+    </div>`;
+  }
+
+  // Kanban
+  html += '<div class="kanban">';
+  appData.blocks.forEach(block => {
+    const acts = appData.activities.filter(a => a.blockId === block.id);
+    const done = acts.filter(a => rec.checked[a.id]).length;
+    const allDone = acts.length > 0 && done === acts.length;
+    html += `<div class="qcol ${block.id} ${allDone?'all-done':''}">
+      <div class="qcol-head">
+        <span class="qcol-title">${escapeHtml(block.title)}</span>
+        <span class="qcol-count">${done}/${acts.length}</span>
+      </div>`;
+    if(acts.length === 0){
+      html += '<div class="qcol-empty" style="background:transparent;color:var(--muted);font-weight:600;">No activities</div>';
+    } else if(allDone){
+      html += '<div class="qcol-empty">✅ All done!</div>';
+    } else {
+      acts.forEach(a => {
+        const ck = !!rec.checked[a.id];
+        if (ck) return; // hide done tasks from today view (still shown in history)
+        const vrec = rec.checked[a.id];
+        const vby = (vrec && typeof vrec === 'object' && vrec.by) ? vrec.by : '';
+        html += `<div class="qact ${ck?'checked':''}" onclick="toggleActivity('${a.id}')">
+          <div class="qcheck">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M5 12l5 5L20 6" stroke="#FAF6EE" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="qbody">
+            <div class="qlabel">${escapeHtml(a.label)}</div>
+            <span class="qstars">+${a.stars} ★</span>
+            ${ck && vby?`<span class="qverified">✓ by ${escapeHtml(vby)}</span>`:''}
+          </div>
+        </div>`;
+      });
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Remarks
+  const canEditMom = (currentUser.role === 'mother' || currentUser.role === 'father');
+  const canEditDad = (currentUser.role === 'father');
+  html += '<div class="remarks">';
+  html += `<div class="remark-card">
+    <h3>💬 Mama's Remarks</h3>
+    <div class="sub">Today's note from Mama to ${escapeHtml(kid.name)}</div>
+    ${canEditMom
+      ? `<textarea oninput="saveRemark('mom', this.value)" placeholder="Write a note for ${escapeHtml(kid.name)}…">${escapeHtml(rec.momRemark||'')}</textarea>`
+      : `<div class="read-only ${rec.momRemark?'':'empty'}">${rec.momRemark ? escapeHtml(rec.momRemark) : 'No note from Mama yet today.'}</div>`}
+  </div>`;
+  html += `<div class="remark-card baba">
+    <h3>💬 Baba's Remarks</h3>
+    <div class="sub">Today's note from Baba to ${escapeHtml(kid.name)}</div>
+    ${canEditDad
+      ? `<textarea oninput="saveRemark('dad', this.value)" placeholder="Write a note for ${escapeHtml(kid.name)}…">${escapeHtml(rec.dadRemark||'')}</textarea>`
+      : `<div class="read-only ${rec.dadRemark?'':'empty'}">${rec.dadRemark ? escapeHtml(rec.dadRemark) : 'No note from Baba yet today.'}</div>`}
+  </div>`;
+  html += '</div>';
+
+  wrap.innerHTML = html;
+}
+
+let remarkSaveTimer = null;
+function saveRemark(which, v){
+  const rec = dayRec(activeKidId, todayKey());
+  if(which === 'mom') rec.momRemark = v;
+  if(which === 'dad') rec.dadRemark = v;
+  clearTimeout(remarkSaveTimer);
+  remarkSaveTimer = setTimeout(() => { saveData(); }, 500);
+}
+
+function toggleActivity(aid){
+  // Kid can only check their own; parents can check for active kid
+  const rec = dayRec(activeKidId, todayKey());
+  const wasDone = !!rec.checked[aid];
+  if(wasDone){
+    delete rec.checked[aid];
+  } else {
+    rec.checked[aid] = { ts: new Date().toISOString(), by: currentUser.name };
+    celebrate('⭐');
+  }
+  saveData();
+  renderToday();
+  renderKidTabs();
+}
+
+// ============================================================================
+// PRIZES VIEW
+// ============================================================================
+function nextPrizeFor(kid){
+  const t = totalStars(kid);
+  const red = (appData.redeemed[kid]||[]).map(r => r.prizeId);
+  const avail = appData.prizes.filter(p => !red.includes(p.id)).sort((a,b)=>a.cost-b.cost);
+  return avail.find(p => p.cost > t) || avail[0] || null;
+}
+function renderPrizes(){
+  const wrap = document.getElementById('prizesView');
+  if(!activeKidId){ wrap.innerHTML = '<div class="empty">No kid selected.</div>'; return; }
+  const kid = appData.kids.find(k => k.id === activeKidId);
+  const t = totalStars(activeKidId);
+  const red = (appData.redeemed[activeKidId]||[]).map(r => r.prizeId);
+  let html = `<div class="stars-hero">
+    <div class="hero-label">${escapeHtml(kid.name)}'s Wallet</div>
+    <div class="hero-count">${t}<span class="hs"> ★</span></div>
+    <div class="hero-streak">Available stars · spend on a prize below 🎁</div>
+  </div>`;
+  if(appData.prizes.length === 0){
+    html += '<div class="empty">No prizes set yet. Father can add some in <b>Manage</b>.</div>';
+    wrap.innerHTML = html; return;
+  }
+  html += '<div class="prize-grid">';
+  appData.prizes.forEach(p => {
+    const isRed = red.includes(p.id);
+    const canAfford = !isRed && t >= p.cost;
+    const cls = isRed ? 'redeemed' : (canAfford ? 'affordable' : '');
+    let status = isRed ? '✓ Redeemed' : (canAfford ? 'Ready to redeem!' : '');
+    let countdown = (!isRed && !canAfford) ? `${p.cost - t} more stars` : '';
+    html += `<div class="prize-card ${cls}">
+      <div class="picon">${escapeHtml(p.icon)}</div>
+      <div class="pname">${escapeHtml(p.name)}</div>
+      <div class="pcost">${p.cost} ★</div>
+      <div class="pstatus">${status}</div>
+      ${countdown?`<div class="pcountdown">${countdown}</div>`:''}
+      ${canAfford?`<button class="redeem-btn" onclick="redeemPrize('${p.id}')">Redeem 🎁</button>`:''}
+    </div>`;
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+async function redeemPrize(pid){
+  const p = appData.prizes.find(x => x.id === pid); if(!p) return;
+  const kid = appData.kids.find(k => k.id === activeKidId);
+  const ok = await showConfirm({
+    title:'Redeem prize?',
+    msg:`Redeem "${p.name}" for ${kid.name} (${p.cost} stars)?\n\nA parent should agree before redeeming.`,
+    okText:'Redeem',
+  });
+  if(!ok) return;
+  appData.redeemed[activeKidId] = appData.redeemed[activeKidId] || [];
+  appData.redeemed[activeKidId].push({ prizeId:pid, date:todayKey() });
+  saveData();
+  celebrate('🎁');
+  showToast('Prize redeemed!');
+  renderPrizes(); renderKidTabs();
+  if(!document.getElementById('todayView').classList.contains('hidden')) renderToday();
+}
+
+// ============================================================================
+// HISTORY VIEW (heatmap + recent days)
+// ============================================================================
+function renderHistory(){
+  const wrap = document.getElementById('historyView');
+  if(!activeKidId){ wrap.innerHTML = '<div class="empty">No kid selected.</div>'; return; }
+  const kid = appData.kids.find(k => k.id === activeKidId);
+  const total = appData.activities.length || 1;
+  const prog = appData.progress[activeKidId] || {};
+  // Heatmap last 28 days
+  let html = `<div class="hm-card">
+    <h2>📅 ${escapeHtml(kid.name)}'s Last 28 Days</h2>
+    <div class="heatmap">`;
+  for(let i=27;i>=0;i--){
+    const dk = dateKeyFor(i);
+    const rec = prog[dk];
+    const done = rec ? appData.activities.filter(a => rec.checked[a.id]).length : 0;
+    const pct = Math.round(done/total*100);
+    let lv = '';
+    if(pct >= 90) lv = 'l4'; else if(pct >= 70) lv = 'l3'; else if(pct >= 40) lv = 'l2'; else if(pct > 0) lv = 'l1';
+    const d = new Date(); d.setDate(d.getDate()-i);
+    html += `<div class="hm-day ${lv}${i===0?' today':''}" title="${dk}: ${pct}%">
+      <span class="hm-dnum">${d.getDate()}</span>
+      <span class="hm-pct">${pct?pct+'%':''}</span>
+    </div>`;
+  }
+  html += `</div>
+    <div class="hm-legend"><span>Less</span>
+      <div class="hm-sq" style="background:var(--cream-d)"></div>
+      <div class="hm-sq" style="background:#FFF1D0"></div>
+      <div class="hm-sq" style="background:#F7D89F"></div>
+      <div class="hm-sq" style="background:#F0B673"></div>
+      <div class="hm-sq" style="background:var(--terra)"></div>
+      <span>More</span>
+    </div>
+  </div>`;
+  // Streak + total summary
+  const streak = streakFor(activeKidId);
+  const totalStarsCount = totalStars(activeKidId);
+  const loggedDays = Object.keys(prog).filter(dk => appData.activities.some(a => prog[dk].checked[a.id])).length;
+  html += `<div class="panel">
+    <h2>📊 Stats</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;">
+      <div><div style="font-size:24px;font-weight:800;color:var(--terra)">${streak}</div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Day Streak 🔥</div></div>
+      <div><div style="font-size:24px;font-weight:800;color:var(--green)">${loggedDays}</div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Days Logged</div></div>
+      <div><div style="font-size:24px;font-weight:800;color:var(--honey-d)">${totalStarsCount}</div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Total Stars ★</div></div>
+    </div>
+  </div>`;
+  wrap.innerHTML = html;
+}
+
+// ============================================================================
+// DRAG-AND-DROP REORDER (Manage view: blocks, activities, prizes, kids)
+// ============================================================================
+// Each draggable row carries data-fq-kind and data-fq-id; activities also carry
+// data-fq-parent (the block id) so we constrain drops to the same block.
+let _fqDnd = null;
+function fqDndStart(e){
+  e.preventDefault(); e.stopPropagation();
+  const handle = e.currentTarget;
+  const source = handle.closest('[data-fq-kind]');
+  if(!source) return;
+  const kind = source.dataset.fqKind;
+  const id = source.dataset.fqId;
+  const parent = source.dataset.fqParent || '';
+  const label = (source.querySelector('input[type="text"]')?.value) || source.textContent.trim().slice(0, 60);
+  const ghost = document.createElement('div');
+  ghost.className = 'fq-drag-ghost';
+  ghost.textContent = label || 'item';
+  ghost.style.left = (e.clientX + 12) + 'px';
+  ghost.style.top  = (e.clientY - 12) + 'px';
+  document.body.appendChild(ghost);
+  source.classList.add('fq-dragging');
+  _fqDnd = { kind, id, parent, source, ghost, dropEl:null, dropPos:null, pointerId:e.pointerId };
+  try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+  handle.addEventListener('pointermove', fqDndMove);
+  handle.addEventListener('pointerup', fqDndEnd);
+  handle.addEventListener('pointercancel', fqDndEnd);
+}
+function fqDndMove(e){
+  if(!_fqDnd) return;
+  e.preventDefault();
+  const g = _fqDnd.ghost;
+  g.style.left = (e.clientX + 12) + 'px';
+  g.style.top  = (e.clientY - 12) + 'px';
+  g.style.display = 'none';
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  g.style.display = '';
+  if(!under) return;
+  const target = under.closest('[data-fq-kind]');
+  if(_fqDnd.dropEl && _fqDnd.dropEl !== target){
+    _fqDnd.dropEl.classList.remove('fq-drop-above','fq-drop-below');
+  }
+  if(!target || target === _fqDnd.source){ _fqDnd.dropEl = null; return; }
+  // Only same kind + same parent can be drop targets
+  if(target.dataset.fqKind !== _fqDnd.kind) return;
+  if((target.dataset.fqParent || '') !== _fqDnd.parent) return;
+  const r = target.getBoundingClientRect();
+  const above = e.clientY < r.top + r.height/2;
+  target.classList.remove('fq-drop-above','fq-drop-below');
+  target.classList.add(above ? 'fq-drop-above' : 'fq-drop-below');
+  _fqDnd.dropEl = target;
+  _fqDnd.dropPos = above ? 'above' : 'below';
+}
+function fqDndEnd(e){
+  if(!_fqDnd) return;
+  const handle = e.currentTarget;
+  handle.removeEventListener('pointermove', fqDndMove);
+  handle.removeEventListener('pointerup', fqDndEnd);
+  handle.removeEventListener('pointercancel', fqDndEnd);
+  try{ handle.releasePointerCapture(_fqDnd.pointerId); }catch(err){}
+  if(_fqDnd.ghost && _fqDnd.ghost.parentNode) _fqDnd.ghost.parentNode.removeChild(_fqDnd.ghost);
+  _fqDnd.source.classList.remove('fq-dragging');
+  if(_fqDnd.dropEl){
+    _fqDnd.dropEl.classList.remove('fq-drop-above','fq-drop-below');
+    fqDndReorder(_fqDnd.kind, _fqDnd.id, _fqDnd.dropEl.dataset.fqId, _fqDnd.dropPos);
+  }
+  _fqDnd = null;
+}
+function fqDndReorder(kind, srcId, dstId, pos){
+  if(srcId === dstId) return;
+  const lists = {
+    block:    appData.blocks,
+    activity: appData.activities,
+    prize:    appData.prizes,
+    kid:      appData.kids,
+  };
+  const list = lists[kind];
+  if(!list) return;
+  const si = list.findIndex(x => x.id === srcId);
+  const di = list.findIndex(x => x.id === dstId);
+  if(si < 0 || di < 0) return;
+  const [obj] = list.splice(si, 1);
+  // After removing source, recompute destination index
+  let ni = list.findIndex(x => x.id === dstId);
+  if(pos === 'below') ni += 1;
+  list.splice(ni, 0, obj);
+  saveData();
+  renderManage();
+  if(kind === 'kid') renderKidTabs();
+}
+
+// ============================================================================
+// MANAGE VIEW (father only — activities, prizes, kids)
+// ============================================================================
+function renderManage(){
+  const wrap = document.getElementById('manageView');
+  if(currentUser.role !== 'father'){ wrap.innerHTML = '<div class="empty">Only Father can manage.</div>'; return; }
+  let html = '';
+
+  // KIDS
+  html += `<div class="panel">
+    <h2>👶 Manage Kids <span style="font-weight:600;font-size:11px;color:var(--muted);">drag ⋮⋮ to reorder</span></h2>`;
+  appData.kids.forEach(k => {
+    html += `<div class="ed-row" data-fq-kind="kid" data-fq-id="${k.id}">
+      <button class="fq-drag-handle" title="Drag to reorder" onpointerdown="fqDndStart(event)">⋮⋮</button>
+      <span class="ed-icon">${escapeHtml(k.avatar)}</span>
+      <input type="text" id="kidName_${k.id}" value="${escapeHtml(k.name)}" class="ed-grow" placeholder="Name">
+      <input type="text" id="kidAvatar_${k.id}" value="${escapeHtml(k.avatar)}" maxlength="3" style="max-width:60px;" placeholder="Emoji">
+      <input type="text" id="kidPin_${k.id}" value="${escapeHtml(k.password)}" maxlength="8" style="max-width:90px;" placeholder="PIN">
+      <button class="btn-save" onclick="saveKid('${k.id}')">Save</button>
+      <button class="btn-del" onclick="deleteKid('${k.id}')">Delete</button>
+    </div>`;
+  });
+  html += `<div class="add-row">
+    <input id="newKidName" placeholder="New kid's name">
+    <input id="newKidAvatar" placeholder="Emoji" maxlength="3" style="max-width:80px;">
+    <input id="newKidPin" placeholder="PIN (4 digits)" maxlength="8" style="max-width:140px;">
+    <button onclick="addKid()">+ Add Kid</button>
+  </div></div>`;
+
+  // BLOCKS — sections shown on the Today kanban; each activity belongs to one block.
+  html += `<div class="panel">
+    <h2>🗂 Manage Blocks <span style="font-weight:600;font-size:11px;color:var(--muted);">${appData.blocks.length} total · drag ⋮⋮ to reorder</span></h2>
+    <p>Block titles can include an emoji at the start (e.g. <code style="background:var(--cream-d);padding:1px 5px;border-radius:3px;">🌅 Morning</code>). The order here drives the kanban order on Today.</p>`;
+  appData.blocks.forEach(b => {
+    const count = appData.activities.filter(a => a.blockId === b.id).length;
+    html += `<div class="ed-row" data-fq-kind="block" data-fq-id="${b.id}">
+      <button class="fq-drag-handle" title="Drag to reorder" onpointerdown="fqDndStart(event)">⋮⋮</button>
+      <input type="text" id="blockTitle_${b.id}" value="${escapeHtml(b.title)}" class="ed-grow" placeholder="Block title (with emoji)">
+      <span style="font-size:10.5px;color:var(--muted);">${count} activit${count===1?'y':'ies'}</span>
+      <button class="btn-save" onclick="saveBlock('${b.id}')">Save</button>
+      <button class="btn-del" onclick="deleteBlock('${b.id}')">Delete</button>
+    </div>`;
+  });
+  html += `<button class="fq-add-slim" onclick="addBlock()"><span class="plus">+</span> Add new block</button>
+  </div>`;
+
+  // ACTIVITIES (grouped by block)
+  html += `<div class="panel">
+    <h2>📋 Manage Activities <span style="font-weight:600;font-size:11px;color:var(--muted);">${appData.activities.length} total · drag ⋮⋮ to reorder within a block</span></h2>
+    <p>Edit labels, change star weights, move between blocks, or remove. Default star weight for new activities = 10.</p>`;
+  appData.blocks.forEach(block => {
+    html += `<div style="margin:10px 0 4px;font-size:12px;font-weight:800;color:var(--terra);">${escapeHtml(block.title)}</div>`;
+    const acts = appData.activities.filter(a => a.blockId === block.id);
+    acts.forEach(a => {
+      html += `<div class="ed-row" data-fq-kind="activity" data-fq-id="${a.id}" data-fq-parent="${block.id}">
+        <button class="fq-drag-handle" title="Drag to reorder" onpointerdown="fqDndStart(event)">⋮⋮</button>
+        <input type="text" id="actLabel_${a.id}" value="${escapeHtml(a.label)}" class="ed-grow">
+        <input type="number" id="actStars_${a.id}" value="${a.stars}" min="0" max="100">
+        <span style="font-size:10.5px;color:var(--muted);">★</span>
+        <select id="actBlock_${a.id}">
+          ${appData.blocks.map(b => `<option value="${b.id}" ${b.id===a.blockId?'selected':''}>${escapeHtml(b.title)}</option>`).join('')}
+        </select>
+        <button class="btn-save" onclick="saveActivity('${a.id}')">Save</button>
+        <button class="btn-del" onclick="deleteActivity('${a.id}')">Delete</button>
+      </div>`;
+    });
+  });
+  html += `<div class="add-row">
+    <input id="newActLabel" placeholder="New activity">
+    <input id="newActStars" type="number" placeholder="Stars" value="10" style="max-width:90px;">
+    <select id="newActBlock">
+      ${appData.blocks.map(b => `<option value="${b.id}">${escapeHtml(b.title)}</option>`).join('')}
+    </select>
+    <button onclick="addActivity()">+ Add Activity</button>
+  </div></div>`;
+
+  // PRIZES
+  html += `<div class="panel">
+    <h2>🎁 Manage Prizes <span style="font-weight:600;font-size:11px;color:var(--muted);">${appData.prizes.length} total · drag ⋮⋮ to reorder</span></h2>`;
+  appData.prizes.forEach(p => {
+    html += `<div class="ed-row" data-fq-kind="prize" data-fq-id="${p.id}">
+      <button class="fq-drag-handle" title="Drag to reorder" onpointerdown="fqDndStart(event)">⋮⋮</button>
+      <span class="ed-icon">${escapeHtml(p.icon)}</span>
+      <input type="text" id="przIcon_${p.id}" value="${escapeHtml(p.icon)}" maxlength="3" style="max-width:60px;" placeholder="Emoji">
+      <input type="text" id="przName_${p.id}" value="${escapeHtml(p.name)}" class="ed-grow">
+      <input type="number" id="przCost_${p.id}" value="${p.cost}" min="1">
+      <span style="font-size:10.5px;color:var(--muted);">★</span>
+      <button class="btn-save" onclick="savePrize('${p.id}')">Save</button>
+      <button class="btn-del" onclick="deletePrize('${p.id}')">Delete</button>
+    </div>`;
+  });
+  html += `<div class="add-row">
+    <input id="newPrzIcon" placeholder="Emoji" maxlength="3" style="max-width:80px;">
+    <input id="newPrzName" placeholder="Prize name">
+    <input id="newPrzCost" type="number" placeholder="Cost in stars" style="max-width:140px;">
+    <button onclick="addPrize()">+ Add Prize</button>
+  </div></div>`;
+
+  wrap.innerHTML = html;
+}
+
+// CRUD — kids
+function saveKid(id){
+  const k = appData.kids.find(x => x.id === id); if(!k) return;
+  k.name = document.getElementById('kidName_'+id).value.trim() || k.name;
+  k.avatar = document.getElementById('kidAvatar_'+id).value.trim() || k.avatar;
+  k.password = document.getElementById('kidPin_'+id).value.trim() || k.password;
+  saveData(); renderManage(); renderKidTabs(); showToast('Saved');
+}
+async function deleteKid(id){
+  const k = appData.kids.find(x => x.id === id); if(!k) return;
+  const ok = await showConfirm({title:'Delete kid?', msg:`Remove ${k.name} and all their progress?`, okText:'Delete'});
+  if(!ok) return;
+  appData.kids = appData.kids.filter(x => x.id !== id);
+  delete appData.progress[id]; delete appData.redeemed[id]; delete appData.starsAdj[id];
+  if(activeKidId === id) activeKidId = appData.kids[0]?.id || null;
+  saveData(); renderManage(); renderKidTabs(); showToast('Deleted');
+}
+function addKid(){
+  const nm = document.getElementById('newKidName').value.trim();
+  const av = document.getElementById('newKidAvatar').value.trim() || '🧒';
+  const pn = document.getElementById('newKidPin').value.trim() || '0000';
+  if(!nm){ showToast('Need a name'); return; }
+  appData.kids.push({ id:'k_'+Date.now().toString(36), name:nm, avatar:av, password:pn });
+  saveData(); renderManage(); renderKidTabs(); showToast('Added');
+}
+
+// CRUD — blocks
+function saveBlock(id){
+  const b = appData.blocks.find(x => x.id === id); if(!b) return;
+  const v = document.getElementById('blockTitle_'+id).value.trim();
+  if(!v){ showToast('Title can\'t be empty'); return; }
+  b.title = v;
+  saveData(); renderManage(); showToast('Saved');
+}
+function addBlock(){
+  const id = 'b_' + Date.now().toString(36);
+  appData.blocks.push({ id, title:'✨ New Block' });
+  saveData(); renderManage(); showToast('Block added');
+  setTimeout(() => {
+    const inp = document.getElementById('blockTitle_'+id);
+    if(inp){ inp.focus(); inp.select(); inp.scrollIntoView({behavior:'smooth', block:'center'}); }
+  }, 50);
+}
+async function deleteBlock(id){
+  const b = appData.blocks.find(x => x.id === id); if(!b) return;
+  if(appData.blocks.length <= 1){ showToast('Need at least one block'); return; }
+  const acts = appData.activities.filter(a => a.blockId === id);
+  if(acts.length > 0){
+    const fallback = appData.blocks.find(x => x.id !== id);
+    const ok = await showConfirm({
+      title:'Delete block?',
+      msg:`"${b.title}" has ${acts.length} activit${acts.length===1?'y':'ies'}. They will be moved to "${fallback.title}". Continue?`,
+      okText:'Delete & move',
+    });
+    if(!ok) return;
+    acts.forEach(a => { a.blockId = fallback.id; });
+  } else {
+    const ok = await showConfirm({ title:'Delete block?', msg:`Remove "${b.title}"?`, okText:'Delete' });
+    if(!ok) return;
+  }
+  appData.blocks = appData.blocks.filter(x => x.id !== id);
+  saveData(); renderManage(); showToast('Block deleted');
+}
+
+// CRUD — activities
+function saveActivity(id){
+  const a = appData.activities.find(x => x.id === id); if(!a) return;
+  a.label = document.getElementById('actLabel_'+id).value.trim() || a.label;
+  a.stars = parseInt(document.getElementById('actStars_'+id).value, 10) || 0;
+  a.blockId = document.getElementById('actBlock_'+id).value || a.blockId;
+  saveData(); renderManage(); showToast('Saved');
+}
+async function deleteActivity(id){
+  const ok = await showConfirm({title:'Delete activity?', msg:'This affects only future days.', okText:'Delete'});
+  if(!ok) return;
+  appData.activities = appData.activities.filter(x => x.id !== id);
+  saveData(); renderManage(); showToast('Deleted');
+}
+function addActivity(){
+  const lb = document.getElementById('newActLabel').value.trim();
+  const st = parseInt(document.getElementById('newActStars').value, 10) || 10;
+  const bid = document.getElementById('newActBlock').value;
+  if(!lb){ showToast('Need a label'); return; }
+  appData.activities.push({ id:'a_'+Date.now().toString(36), label:lb, stars:st, blockId:bid });
+  saveData(); renderManage(); showToast('Added');
+}
+
+// CRUD — prizes
+function savePrize(id){
+  const p = appData.prizes.find(x => x.id === id); if(!p) return;
+  p.icon = document.getElementById('przIcon_'+id).value.trim() || p.icon;
+  p.name = document.getElementById('przName_'+id).value.trim() || p.name;
+  p.cost = parseInt(document.getElementById('przCost_'+id).value, 10) || p.cost;
+  saveData(); renderManage(); showToast('Saved');
+}
+async function deletePrize(id){
+  const ok = await showConfirm({title:'Delete prize?', msg:'This won\'t affect prizes already redeemed.', okText:'Delete'});
+  if(!ok) return;
+  appData.prizes = appData.prizes.filter(x => x.id !== id);
+  saveData(); renderManage(); showToast('Deleted');
+}
+function addPrize(){
+  const ic = document.getElementById('newPrzIcon').value.trim() || '🎁';
+  const nm = document.getElementById('newPrzName').value.trim();
+  const co = parseInt(document.getElementById('newPrzCost').value, 10);
+  if(!nm || !co){ showToast('Need name + cost'); return; }
+  appData.prizes.push({ id:'p_'+Date.now().toString(36), icon:ic, name:nm, cost:co });
+  saveData(); renderManage(); showToast('Added');
+}
+
+// ============================================================================
+// BOOKS VIEW (kids' reading list)
+// ============================================================================
+let bkStatusView = 'library';   // 'library' | 'reading' | 'next' | 'done'
+
+function renderBooks(){
+  const wrap = document.getElementById('booksView');
+  if(!appData.kids.length){ wrap.innerHTML = '<div class="empty">Add a kid first.</div>'; return; }
+
+  // The active kid comes from the top-left kid switcher (single source of truth).
+  // Kid users always view their own; parents follow whatever's selected in the tab strip.
+  const kidId = (currentUser.role === 'kid') ? currentUser.kidId : activeKidId;
+  const kid = appData.kids.find(k => k.id === kidId);
+  if(!kid){ wrap.innerHTML = '<div class="empty">Pick a child from the cards above.</div>'; return; }
+  const visibleKids = [kid];  // status chips on each row act on this kid only
+
+  // ===== Toolbar (chips + search + add) =====
+  const counts = computeBookCounts(kid);
+  let html = `<div class="bk-toolbar">
+    <div class="bk-chips">
+      <button class="bk-chip ${bkStatusView==='library'?'active':''}" onclick="setBkStatus('library')">📚 Library <span class="bk-chip-count">${counts.library}</span></button>
+      <button class="bk-chip ${bkStatusView==='reading'?'active':''}" onclick="setBkStatus('reading')">📖 Now Reading <span class="bk-chip-count">${counts.reading}</span></button>
+      <button class="bk-chip ${bkStatusView==='next'?'active':''}" onclick="setBkStatus('next')">⏭ Next Up <span class="bk-chip-count">${counts.next}</span></button>
+      <button class="bk-chip ${bkStatusView==='done'?'active':''}" onclick="setBkStatus('done')">✓ Done <span class="bk-chip-count">${counts.done}</span></button>
+    </div>
+    <div class="bk-filters">
+      <input class="bk-search" id="bkSearch" type="search"
+        placeholder="🔍 Search title or author for ${escapeHtml(kid.name)}…"
+        oninput="onBkSearch(this.value)" value="${escapeHtml(_bkSearchVal)}">
+      ${currentUser.role === 'father' ? `<button class="bk-add" onclick="openAddBook()">+ Add Book</button>` : ''}
+    </div>
+    <div style="margin-top:8px;font-size:11.5px;color:var(--muted);font-weight:600;">
+      Showing books for <b style="color:var(--terra);">${escapeHtml(kid.avatar)} ${escapeHtml(kid.name)}</b>${currentUser.role!=='kid' ? ' — pick a different child from the cards above to switch' : ''}
+    </div>
+  </div>`;
+
+  // ===== Filter books by search =====
+  const search = _bkSearchVal.toLowerCase().trim();
+  let books = appData.books.filter(b => {
+    if(search){
+      const hay = (b.title+' '+b.author+' '+b.note+' '+b.category).toLowerCase();
+      if(!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  // ===== Library view: group by category =====
+  if(bkStatusView === 'library'){
+    // Library = everything in the library, even books this kid has no status on.
+    // Status chips on each row let the kid (or a parent) set Next/Reading/Done.
+    if(books.length === 0){
+      html += `<div class="bk-empty">No books. ${currentUser.role==='father' ? 'Click <b>+ Add Book</b>.' : 'Ask Father to add some.'}</div>`;
+      wrap.innerHTML = html; return;
+    }
+    BK_CATEGORIES.forEach((cat, idx) => {
+      const inCat = books.filter(b => b.category === cat);
+      if(inCat.length === 0) return;
+      const num = String(idx+1).padStart(2,'0');
+      html += renderBkCategoryBlock(num + ' · ' + cat, inCat, visibleKids);
+    });
+    const seen = new Set(BK_CATEGORIES);
+    const custom = {};
+    books.filter(b => !seen.has(b.category)).forEach(b => { (custom[b.category]=custom[b.category]||[]).push(b); });
+    Object.keys(custom).forEach(cat => { html += renderBkCategoryBlock('✦ ' + cat, custom[cat], visibleKids); });
+  } else {
+    // ===== Status views: just this kid's books at that status =====
+    const status = bkStatusView;
+    const myBooks = books.filter(b => b.readerStatus[kid.id] === status);
+    if(myBooks.length === 0){
+      const lbl = status==='reading'?'currently reading':(status==='next'?'queued as next':'finished');
+      html += `<div class="bk-empty">${escapeHtml(kid.name)} has no books ${lbl} yet.<br>Switch to <b>📚 Library</b> and tap the chip on any book.</div>`;
+    } else {
+      html += renderBkReaderBlock(kid, myBooks, status);
+    }
+  }
+
+  wrap.innerHTML = html;
+}
+
+let _bkSearchVal = '';
+let _bkSearchTimer = null;
+function onBkSearch(v){
+  _bkSearchVal = v;
+  clearTimeout(_bkSearchTimer);
+  _bkSearchTimer = setTimeout(() => {
+    renderBooks();
+    const inp = document.getElementById('bkSearch');
+    if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  }, 220);
+}
+function setBkStatus(v){
+  bkStatusView = v;
+  const inp = document.getElementById('bkSearch'); if(inp) _bkSearchVal = inp.value;
+  renderBooks();
+}
+function computeBookCounts(kid){
+  const search = _bkSearchVal.toLowerCase().trim();
+  const matching = appData.books.filter(b => {
+    if(!search) return true;
+    const hay = (b.title+' '+b.author+' '+b.note+' '+b.category).toLowerCase();
+    return hay.includes(search);
+  });
+  const counts = { library: matching.length, reading:0, next:0, done:0 };
+  matching.forEach(b => {
+    const s = b.readerStatus[kid.id];
+    if(s === 'reading') counts.reading++;
+    else if(s === 'next') counts.next++;
+    else if(s === 'done') counts.done++;
+  });
+  return counts;
+}
+
+function renderBkCategoryBlock(title, books, visibleKids){
+  const collapsed = appData.booksCollapsed[title] ? ' collapsed' : '';
+  let body = '';
+  books.forEach((b, i) => { body += renderBkRow(b, String(i+1).padStart(2,'0'), visibleKids); });
+  return `<div class="bk-cat${collapsed}">
+    <div class="bk-cat-head" onclick="toggleBkCat('${escapeJsStr(title)}')">
+      <div class="bk-cat-title">${escapeHtml(title)}</div>
+      <div class="bk-cat-meta">
+        <span class="bk-cat-count">${books.length}</span>
+        <span class="bk-cat-chev">▼</span>
+      </div>
+    </div>
+    <div class="bk-cat-body">${body}</div>
+  </div>`;
+}
+
+function renderBkReaderBlock(kid, books, status){
+  const statusEmoji = status==='reading'?'📖':(status==='next'?'⏭':'✓');
+  const statusLabel = status==='reading'?'Now reading':(status==='next'?'Next up':'Finished');
+  let body = '';
+  books.forEach((b, i) => { body += renderBkRow(b, String(i+1).padStart(2,'0'), [kid]); });
+  return `<div class="bk-rgrp">
+    <div class="bk-rgrp-head">
+      <div class="bk-rgrp-title">
+        <span class="bk-rgrp-avatar">${escapeHtml(kid.avatar)}</span>
+        <span>${escapeHtml(kid.name)}</span>
+        <span style="color:var(--muted);font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;">${statusEmoji} ${statusLabel}</span>
+      </div>
+      <span class="bk-rgrp-count">${books.length} ${books.length===1?'book':'books'}</span>
+    </div>
+    <div class="bk-cat-body">${body}</div>
+  </div>`;
+}
+
+function renderBkRow(b, num, visibleKids){
+  const isFather = currentUser.role === 'father';
+  const statusBtns = visibleKids.map(k => {
+    const st = b.readerStatus[k.id];
+    const cls = st || '';
+    return `<button class="bk-rb ${cls}"
+      title="${escapeHtml(k.name)}${st?' · '+st:''}"
+      onclick="cycleBkStatus('${b.id}','${k.id}')">${escapeHtml(k.avatar)} ${escapeHtml(k.name)}${st?' · '+st:''}</button>`;
+  }).join('');
+  const att = b.attachmentUrl
+    ? `<a class="bk-att" href="${escapeHtml(b.attachmentUrl)}" target="_blank" rel="noopener">📎 ${escapeHtml(b.attachmentName||'attachment')}</a>`
+    : '';
+  const actions = isFather
+    ? `<div class="bk-actions">
+        <button class="bk-act-btn" onclick="openEditBook('${b.id}')">Edit</button>
+        <button class="bk-act-btn" onclick="deleteBook('${b.id}')">Delete</button>
+      </div>` : '';
+  return `<div class="bk-row">
+    <div class="bk-num">${num}</div>
+    <div class="bk-info">
+      <div class="bk-title">${escapeHtml(b.title)}</div>
+      <div class="bk-meta-line">
+        ${b.author?'<span class="bk-author">'+escapeHtml(b.author)+'</span>':''}
+        ${b.note?'<span class="bk-note">· '+escapeHtml(b.note)+'</span>':''}
+        ${att}
+      </div>
+      <div class="bk-status-row">${statusBtns}</div>
+    </div>
+    ${actions}
+  </div>`;
+}
+
+function escapeJsStr(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function toggleBkCat(title){
+  appData.booksCollapsed[title] = !appData.booksCollapsed[title];
+  saveData();
+  renderBooks();
+}
+
+// Cycle reader status: undefined → next → reading → done → undefined
+function cycleBkStatus(bookId, kidId){
+  // Kids can only change their own status
+  if(currentUser.role === 'kid' && kidId !== currentUser.kidId){
+    showToast("Only " + (appData.kids.find(k=>k.id===kidId)?.name||'') + " can change this");
+    return;
+  }
+  const b = appData.books.find(x => x.id === bookId); if(!b) return;
+  const order = [undefined, 'next', 'reading', 'done'];
+  const cur = b.readerStatus[kidId];
+  const nxt = order[(order.indexOf(cur) + 1) % order.length];
+  if(nxt === undefined) delete b.readerStatus[kidId]; else b.readerStatus[kidId] = nxt;
+  saveData();
+  renderBooks();
+}
+
+// Add / Edit book modal (father only)
+let editingBookId = null;
+function openAddBook(){
+  editingBookId = null;
+  document.getElementById('bookModalTitle').textContent = 'Add Book';
+  document.getElementById('bkTitle').value = '';
+  document.getElementById('bkAuthor').value = '';
+  populateBookCatSelect();
+  document.getElementById('bkNote').value = '';
+  document.getElementById('bkAttUrl').value = '';
+  document.getElementById('bkAttName').value = '';
+  document.getElementById('bookModal').classList.add('show');
+  setTimeout(() => document.getElementById('bkTitle').focus(), 100);
+}
+function openEditBook(id){
+  const b = appData.books.find(x => x.id === id); if(!b) return;
+  editingBookId = id;
+  document.getElementById('bookModalTitle').textContent = 'Edit Book';
+  document.getElementById('bkTitle').value = b.title || '';
+  document.getElementById('bkAuthor').value = b.author || '';
+  populateBookCatSelect(b.category);
+  document.getElementById('bkNote').value = b.note || '';
+  document.getElementById('bkAttUrl').value = b.attachmentUrl || '';
+  document.getElementById('bkAttName').value = b.attachmentName || '';
+  document.getElementById('bookModal').classList.add('show');
+  setTimeout(() => document.getElementById('bkTitle').focus(), 100);
+}
+function populateBookCatSelect(selected){
+  const sel = document.getElementById('bkCat'); sel.innerHTML = '';
+  BK_CATEGORIES.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    if(c === selected) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+function closeBookModal(){
+  document.getElementById('bookModal').classList.remove('show');
+  editingBookId = null;
+}
+function saveBookForm(){
+  const title = document.getElementById('bkTitle').value.trim();
+  if(!title){ showToast('Title required'); return; }
+  const obj = {
+    title,
+    author: document.getElementById('bkAuthor').value.trim(),
+    category: document.getElementById('bkCat').value,
+    note: document.getElementById('bkNote').value.trim(),
+    attachmentUrl: document.getElementById('bkAttUrl').value.trim(),
+    attachmentName: document.getElementById('bkAttName').value.trim(),
+  };
+  if(editingBookId){
+    const b = appData.books.find(x => x.id === editingBookId); if(b) Object.assign(b, obj);
+  } else {
+    appData.books.push(Object.assign({
+      id: 'bk_u_' + Date.now().toString(36),
+      readerStatus: {},
+      createdAt: new Date().toISOString(),
+    }, obj));
+  }
+  saveData(); closeBookModal(); renderBooks();
+  showToast(editingBookId ? 'Book updated' : 'Book added');
+}
+async function deleteBook(id){
+  const b = appData.books.find(x => x.id === id); if(!b) return;
+  const ok = await showConfirm({ title:'Delete book?', msg:'Delete "'+b.title+'"?', okText:'Delete' });
+  if(!ok) return;
+  appData.books = appData.books.filter(x => x.id !== id);
+  saveData(); renderBooks(); showToast('Book deleted');
+}
+
+// ============================================================================
+// SETTINGS VIEW (father only — passwords, backup, danger zone)
+// ============================================================================
+function renderSettings(){
+  const wrap = document.getElementById('settingsView');
+  if(currentUser.role !== 'father'){ wrap.innerHTML = '<div class="empty">Only Father can change settings.</div>'; return; }
+  let html = '';
+
+  // Passwords
+  html += `<div class="panel">
+    <h2>🔐 Passwords</h2>
+    <p>Change any PIN. Default Father / Mother is <code>1234</code>; kids are <code>0001</code>, <code>0002</code>.</p>
+    <div class="ed-row">
+      <label>👤 Father</label>
+      <input type="text" id="pwFather" value="${escapeHtml(appData.passwords.father)}" maxlength="10" class="ed-grow">
+      <button class="btn-save" onclick="savePassword('father')">Save</button>
+    </div>
+    <div class="ed-row">
+      <label>👩 Mother</label>
+      <input type="text" id="pwMother" value="${escapeHtml(appData.passwords.mother)}" maxlength="10" class="ed-grow">
+      <button class="btn-save" onclick="savePassword('mother')">Save</button>
+    </div>`;
+  appData.kids.forEach(k => {
+    html += `<div class="ed-row">
+      <label>${escapeHtml(k.avatar)} ${escapeHtml(k.name)}</label>
+      <input type="text" id="pwKid_${k.id}" value="${escapeHtml(k.password)}" maxlength="10" class="ed-grow">
+      <button class="btn-save" onclick="savePassword('kid','${k.id}')">Save</button>
+    </div>`;
+  });
+  html += '</div>';
+
+  // Manual star adjustment
+  html += `<div class="panel">
+    <h2>⚙️ Adjust Stars Manually</h2>
+    <p>Add or subtract stars for the active kid (${escapeHtml(appData.kids.find(k=>k.id===activeKidId)?.name||'')}). Use a negative number to subtract.</p>
+    <div class="ed-row">
+      <input type="number" id="adjStarsInput" placeholder="e.g. 50 or -30" class="ed-grow">
+      <button class="btn-save" onclick="adjustStars()">Apply</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:8px;">Current adjustment: <b style="color:var(--terra);">${appData.starsAdj[activeKidId]||0}</b> stars</div>
+  </div>`;
+
+  // Backup
+  html += `<div class="panel">
+    <h2>💾 Backup &amp; Restore</h2>
+    <p>Export downloads a JSON file with everything: kids, passwords, activities, prizes, daily progress, remarks, and redeemed prizes. Import replaces all data with the backup.</p>
+    <div class="actions-bar">
+      <button onclick="exportData()">⬇️ Export Backup</button>
+      <button onclick="document.getElementById('importFile').click()">⬆️ Import Backup</button>
+      <button class="danger" onclick="resetToDefaults()">🔄 Reset to Defaults</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;">
+      An auto-backup runs silently once per day on first load. Drop your Downloads folder into iCloud Drive to mirror it everywhere.
+    </div>
+  </div>`;
+
+  // Cloud sync (Supabase)
+  const sbCfg = getSupabaseConfig() || {};
+  const sbStatus = !sbCfg.url ? 'Not configured'
+    : (window.supabase ? 'Configured · SDK loaded' : 'Configured · SDK still loading');
+  html += `<div class="panel">
+    <h2>☁️ Cloud Sync (Supabase)</h2>
+    <p>Paste your Supabase Project URL + anon key once. After that, this app and Noman's tracker share state across every device. See <code style="background:var(--cream-d);padding:1px 5px;border-radius:3px;">supabase/schema.sql</code> in the repo for the one-time table setup.</p>
+    <div class="ed-row">
+      <label>Project URL</label>
+      <input type="url" id="sbUrl" value="${escapeHtml(sbCfg.url||'')}" placeholder="https://abcd1234.supabase.co" class="ed-grow">
+    </div>
+    <div class="ed-row">
+      <label>Anon key</label>
+      <input type="text" id="sbKey" value="${escapeHtml(sbCfg.key||'')}" placeholder="eyJhbGciOi…" class="ed-grow">
+    </div>
+    <div class="ed-row" style="border-bottom:none;">
+      <label style="flex:0 0 100px;">&nbsp;</label>
+      <button class="btn-save" onclick="saveCloudConfig()">Save</button>
+      <button class="btn-save" style="background:var(--terra);" onclick="cloudPushNow()">⬆️ Push current data to cloud</button>
+      <button class="btn-del" onclick="cloudClearConfig()">Disable cloud</button>
+    </div>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:6px;">
+      Status: <b style="color:${sbCfg.url?'var(--green)':'var(--muted)'};">${escapeHtml(sbStatus)}</b>
+      ${sbCfg.url?' · Both Family Quest and Noman Daily Tracker use the same project.':''}
+    </div>
+  </div>`;
+
+  wrap.innerHTML = html;
+}
+
+function saveCloudConfig(){
+  const url = document.getElementById('sbUrl').value.trim();
+  const key = document.getElementById('sbKey').value.trim();
+  if(!url || !key){ showToast('Need both URL and key'); return; }
+  if(!/^https?:\/\/.+\.supabase\.(co|in)/.test(url)){
+    showToast('URL should look like https://xxx.supabase.co'); return;
+  }
+  setSupabaseConfig({ url, key });
+  showToast('Saved. Loading from cloud…');
+  // Re-bootstrap so subsequent reads/writes go through Supabase.
+  loadData().then(() => { renderSettings(); renderKidTabs(); renderCurrentView(); });
+}
+function cloudClearConfig(){
+  setSupabaseConfig(null);
+  showToast('Cloud sync disabled');
+  renderSettings();
+}
+async function cloudPushNow(){
+  try {
+    await pushToCloudNow();
+    showToast('☁️ Pushed to cloud');
+  } catch(e){
+    alert('Push failed: ' + e.message);
+  }
+}
+
+function savePassword(kind, id){
+  if(kind === 'father') appData.passwords.father = document.getElementById('pwFather').value || '1234';
+  else if(kind === 'mother') appData.passwords.mother = document.getElementById('pwMother').value || '1234';
+  else if(kind === 'kid'){
+    const k = appData.kids.find(x => x.id === id);
+    if(k) k.password = document.getElementById('pwKid_'+id).value || '0000';
+  }
+  saveData(); showToast('Password updated');
+}
+function adjustStars(){
+  const v = parseInt(document.getElementById('adjStarsInput').value, 10);
+  if(isNaN(v)){ showToast('Enter a number'); return; }
+  appData.starsAdj[activeKidId] = (appData.starsAdj[activeKidId] || 0) + v;
+  document.getElementById('adjStarsInput').value = '';
+  saveData(); renderSettings(); renderKidTabs(); showToast('Adjusted');
+}
+
+async function exportData(opts){
+  opts = opts || {};
+  const blob = new Blob([JSON.stringify({ version:1, exported_at:new Date().toISOString(), data:appData }, null, 2)],
+    { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = new Date();
+  const stamp = todayKey() + '_' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0');
+  const tag = opts.auto ? '-auto' : '';
+  a.href = url;
+  a.download = 'family-quest-backup' + tag + '-' + stamp + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  if(!opts.silent) showToast(opts.auto ? 'Daily backup saved' : 'Backup downloaded');
+}
+async function importData(ev){
+  const f = ev.target.files && ev.target.files[0];
+  if(!f) return;
+  const ok = await showConfirm({ title:'Import backup?',
+    msg:'This will REPLACE all current data (kids, activities, prizes, progress). Continue?', okText:'Replace' });
+  if(!ok){ ev.target.value = ''; return; }
+  try {
+    const text = await f.text();
+    const parsed = JSON.parse(text);
+    const incoming = parsed.data || parsed;
+    if(!incoming || !incoming.kids){ throw new Error('File doesn\'t look like a Family Quest backup.'); }
+    appData = incoming;
+    _applyDefaults();   // validates schema and pushes to local + server
+    showToast('Import complete'); renderSettings(); renderManage(); renderKidTabs(); renderCurrentView();
+  } catch(e){ alert('Import failed: ' + e.message); }
+  ev.target.value = '';
+}
+async function resetToDefaults(){
+  const ok = await showConfirm({ title:'Reset everything?',
+    msg:'Replace ALL kids, activities, prizes, passwords, and daily progress with the built-in defaults?', okText:'Reset' });
+  if(!ok) return;
+  localStorage.removeItem(STORE_KEY);
+  appData = null;
+  // Also wipe the server copy so the next fetch doesn't restore the old data.
+  if(_dbAvailable){
+    try { await fetch(DB_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' }); } catch(e){}
+  }
+  _applyDefaults();
+  showToast('Reset complete'); renderSettings(); renderManage(); renderKidTabs(); renderCurrentView();
+}
+async function maybeAutoBackup(){
+  try {
+    const today = todayKey();
+    if(localStorage.getItem('fq_v2_last_auto_backup') === today) return;
+    await exportData({ auto:true, silent:true });
+    localStorage.setItem('fq_v2_last_auto_backup', today);
+  } catch(e){}
+}
+
+// ============================================================================
+// MODAL / TOAST / CELEBRATE
+// ============================================================================
+let confirmResolver = null;
+function showConfirm({title, msg, okText}){
+  document.getElementById('confirmTitle').textContent = title || 'Confirm';
+  document.getElementById('confirmMsg').textContent = msg || 'Are you sure?';
+  document.getElementById('confirmOkBtn').textContent = okText || 'OK';
+  document.getElementById('confirmModal').classList.add('show');
+  return new Promise(res => { confirmResolver = res; });
+}
+function closeConfirm(v){
+  document.getElementById('confirmModal').classList.remove('show');
+  if(confirmResolver){ const r = confirmResolver; confirmResolver = null; r(v); }
+}
+let toastTimer = null;
+function showToast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+function celebrate(emoji){
+  const c = document.getElementById('celebrate');
+  document.getElementById('burstEmoji').textContent = emoji;
+  c.classList.add('show');
+  setTimeout(() => c.classList.remove('show'), 1000);
+}
+
+// ============================================================================
+// INIT
+// ============================================================================
+document.getElementById('loginPinInput').addEventListener('keydown', e => {
+  if(e.key === 'Enter') submitLogin();
+});
+document.addEventListener('keydown', e => {
+  if(document.getElementById('confirmModal').classList.contains('show')){
+    if(e.key === 'Enter')  closeConfirm(true);
+    if(e.key === 'Escape') closeConfirm(false);
+  }
+});
+
+loadData().then(() => {
+  if(!tryAutoLogin()) renderLogin();
+  setTimeout(() => maybeAutoBackup(), 4000);
+});
+</script>
+</body>
+</html>

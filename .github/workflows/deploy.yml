@@ -1,0 +1,73 @@
+# Push a tag-free copy of the repo to GitHub Pages.
+# Trigger: every push to `main`, or manual run from the Actions tab.
+#
+# Setup (one-time):
+#   Repo Settings → Pages → Source: "GitHub Actions"
+# That's it. No secrets to configure — Supabase URL + anon key live in the
+# user's browser localStorage, not in this repo.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Cancel in-flight runs if a newer push lands
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stage site
+        run: |
+          mkdir -p _site
+          # Ship only the HTML apps + supabase schema + docs.
+          # serve.py / extract.py / db/ stay out of the published site.
+          cp Family_Quest.html         _site/
+          cp Noman_Daily_Tracker.html  _site/
+          cp -r supabase               _site/ 2>/dev/null || true
+          [ -f README.md ]         && cp README.md _site/ || true
+          [ -f ARCHITECTURE.md ]   && cp ARCHITECTURE.md _site/ || true
+          # Friendly landing page so the root URL works
+          cat > _site/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><title>Personal Tracker</title>
+          <style>
+            body{font-family:-apple-system,sans-serif;max-width:520px;margin:8vh auto;padding:24px;
+              background:#FAF6EE;color:#2A2A2A;line-height:1.5}
+            h1{color:#2D4A3A;letter-spacing:-.5px}
+            a.card{display:block;margin:10px 0;padding:18px 22px;background:#fff;border-radius:14px;
+              text-decoration:none;color:#2D4A3A;font-weight:700;border:1px solid #D4CFC4;
+              box-shadow:0 1px 3px rgba(0,0,0,.05)}
+            a.card:hover{border-color:#C2724E;box-shadow:0 4px 14px rgba(194,114,78,.18)}
+            small{color:#8A8475;font-weight:400;display:block;margin-top:4px}
+          </style>
+          <h1>Personal Tracker</h1>
+          <a class="card" href="./Family_Quest.html">👨‍👩‍👧 Family Quest
+            <small>Kids' daily quests, stars, prizes, reading list</small></a>
+          <a class="card" href="./Noman_Daily_Tracker.html">📅 Daily Tracker
+            <small>Personal timeline, projects, history</small></a>
+          HTML
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy
+        id: deploy
+        uses: actions/deploy-pages@v4
